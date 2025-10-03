@@ -121,6 +121,104 @@ async function registerCommands() {
 }
 
 /**
+ * Generates a random introduction message variation
+ */
+function generateIntroMessage(name: string, targetUserId: string, about: string): string {
+    const introVariations = [
+        {
+            emoji: '🎉',
+            title: `Welcome to the Dodo family, ${name}!`,
+            section: `About ${name}:`,
+            footer: 'Ready to build something amazing? Let\'s go! 🚀'
+        },
+        {
+            emoji: '👋',
+            title: `Hey there, ${name}!`,
+            section: `Get to know ${name}:`,
+            footer: 'Welcome to our community of builders and creators! 💪'
+        },
+        {
+            emoji: '🌟',
+            title: `A warm welcome to ${name}!`,
+            section: `Meet ${name}:`,
+            footer: 'Excited to see what you\'ll build with us! ✨'
+        },
+        {
+            emoji: '🚀',
+            title: `Welcome aboard, ${name}!`,
+            section: `About ${name}:`,
+            footer: 'Great to have another builder in our community! Let\'s create something awesome together! 🎯'
+        },
+        {
+            emoji: '🎊',
+            title: `Welcome to Dodo Payments, ${name}!`,
+            section: `Here's what ${name} shared:`,
+            footer: 'We\'re thrilled to have you join our journey of building great products! 🌟'
+        }
+    ];
+
+    // Randomly select one variation
+    const randomIndex = Math.floor(Math.random() * introVariations.length);
+    const variation = introVariations[randomIndex];
+
+    return `${variation.emoji} **${variation.title}** (<@${targetUserId}>)
+
+**${variation.section}**
+${about}
+
+*${variation.footer}*`;
+}
+
+/**
+ * Generates a random working-on message variation (combines product and about)
+ */
+function generateWorkingOnMessage(product: string, targetUserId: string, about: string): string {
+    const workingVariations = [
+        {
+            emoji: '🚀',
+            title: `New project: ${product}`,
+            section: 'About this project:',
+            footer: 'Join the discussion here! 💬'
+        },
+        {
+            emoji: '💡',
+            title: `Building: ${product}`,
+            section: 'Project details:',
+            footer: 'Share your thoughts in the thread! 🎯'
+        },
+        {
+            emoji: '⚡',
+            title: `Work in progress: ${product}`,
+            section: 'What it\'s about:',
+            footer: 'Let\'s discuss this together! 🤝'
+        },
+        {
+            emoji: '🎯',
+            title: `Project spotlight: ${product}`,
+            section: 'Project overview:',
+            footer: 'Join the conversation! 💭'
+        },
+        {
+            emoji: '✨',
+            title: `Fresh build: ${product}`,
+            section: 'Here are the details:',
+            footer: 'Share your feedback here! 🌟'
+        }
+    ];
+
+    // Randomly select one variation
+    const randomIndex = Math.floor(Math.random() * workingVariations.length);
+    const variation = workingVariations[randomIndex];
+
+    return `${variation.emoji} **${variation.title}** (<@${targetUserId}>)
+
+**${variation.section}**
+${about}
+
+*${variation.footer}*`;
+}
+
+/**
  * Clears all DM messages from the bot for a specific user
  */
 async function clearDMMessages(userId: string): Promise<{ success: boolean; message: string }> {
@@ -253,13 +351,27 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
         const workingButton = new ButtonBuilder()
             .setCustomId(`open_modal|working|${targetUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
             .setLabel("Fill What I'm Working On")
-            .setStyle(ButtonStyle.Secondary);
+            .setStyle(ButtonStyle.Primary);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton);
 
         // Send welcome message with role incentive information
         await user.send({
-            content: `Hello @${user.username} 👋\nWelcome to the Dodo Payments server!\n\n**Please introduce yourself:**\nClick the "Fill Introduction" button to tell us about yourself.\n\n**Share what you're working on:**\nClick the "Fill What I'm Working On" button to share your project. After you submit, we'll create a public thread for others to discuss your work.\n\n🎁 **Complete both forms to receive the "Dodo Builder" role!**\n\n**Note:** Do not enter any sensitive information in the above questions since the content will be public.`
+            content: `Hey ${user.username} 👋
+          
+          Welcome to **Dodo Payments** — home for builders shipping great products.
+          
+          **Kick things off (≈60s):**
+          • **Fill Introduction** — who you are + what you’re working on.
+          • **Fill What You're Working On** — share your current project; we’ll open a public thread so others can follow and help.
+          
+          🎁 **Perk:** Complete both to earn the **Dodo Builder** role.
+          
+          **Notes**
+          • Your answers will be posted publicly — please avoid any sensitive info.
+          • Jump in anytime via #introductions, #working-on, or #get-help.
+          
+          Let’s build great things together! 🚀`
         });
 
         // Send the interactive buttons for form selection
@@ -351,11 +463,8 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
                 return;
             }
 
-            // Create and send the public introduction message
-            const publicMessage = `**Welcome ${name} (<@${targetUserId}>)!**
-
-**About me:**
-${about}`;
+            // Create and send the public introduction message with random variation
+            const publicMessage = generateIntroMessage(name, targetUserId, about);
 
             await destChannel.send({ content: publicMessage });
 
@@ -384,17 +493,15 @@ ${about}`;
             return;
         }
 
-        // Send parent message in the working-on channel
-        const parentMsg = await workingChannel.send({ content: `**${product}**\n<@${targetUserId}>` });
+        // Send working-on message with product and about combined (like intro message)
+        const workingMessage = generateWorkingOnMessage(product, targetUserId, about);
+        const parentMsg = await workingChannel.send({ content: workingMessage });
 
-        // Create a PUBLIC thread from that parent message
+        // Create a PUBLIC thread from that parent message for community interaction
         const publicThread = await parentMsg.startThread({
             name: product.slice(0, 100), // Thread names are limited to 100 characters
             autoArchiveDuration: 1440, // 24 hours
         });
-
-        // Post the 'about' as the first message inside the thread
-        await publicThread.send({ content: about });
 
         // Try to add the user to the public thread so they'll receive thread notifications
         try {
