@@ -66,6 +66,24 @@ if (!DISCORD_TOKEN || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID 
     process.exit(1);
 }
 
+// Welcome message template
+const WELCOME_MESSAGE = `Hey @{username} 👋
+
+Welcome to **Dodo Payments** - home for builders shipping great products.
+
+**Kick things off (≈60s):**
+→ **Fill Introduction** - who you are + what you're working on.
+→ **Fill What You're Working On** - share your current project; we'll open a public thread so others can follow and help.
+
+🎁 **Perk:** Complete both to earn the **Dodo Builder** role.
+
+**Notes**
+→ Your answers will be posted publicly - please avoid any sensitive info.
+→ Jump in anytime via #introductions, #working-on, or #get-help.
+
+Let's build great things together! 🚀
+`;
+
 // Initialize Discord client with required intents
 const client = new Client({
     intents: [
@@ -356,23 +374,8 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton);
 
         // Send welcome message with role incentive information
-        await user.send({
-            content: `Hey ${user.username} 👋
-          
-          Welcome to **Dodo Payments** — home for builders shipping great products.
-          
-          **Kick things off (≈60s):**
-          • **Fill Introduction** — who you are + what you’re working on.
-          • **Fill What You're Working On** — share your current project; we’ll open a public thread so others can follow and help.
-          
-          🎁 **Perk:** Complete both to earn the **Dodo Builder** role.
-          
-          **Notes**
-          • Your answers will be posted publicly — please avoid any sensitive info.
-          • Jump in anytime via #introductions, #working-on, or #get-help.
-          
-          Let’s build great things together! 🚀`
-        });
+        const personalizedWelcome = WELCOME_MESSAGE.replace('{username}', user.username);
+        await user.send({ content: personalizedWelcome });
 
         // Send the interactive buttons for form selection
         await user.send({
