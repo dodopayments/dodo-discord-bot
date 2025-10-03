@@ -1,5 +1,33 @@
 {
+  "name": "dodo-discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot that automates the introduction process for new members in the Dodo Payments Discord server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "ts-node index.ts",
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "typescript",
+    "dodo-payments",
+    "introduction",
+    "automation"
+  ],
+  "author": "Dodo Payments",
+  "license": "MIT",
   "dependencies": {
     "discord.js": "^14.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

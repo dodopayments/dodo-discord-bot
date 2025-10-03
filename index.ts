@@ -169,8 +169,17 @@ async function clearDMMessages(userId: string): Promise<{ success: boolean; mess
         // Bulk delete recent messages (less than 2 weeks old)
         if (recentMessages.size > 0) {
             try {
-                await dmChannel.bulkDelete(recentMessages, true);
-                deletedCount += recentMessages.size;
+                // DMChannel doesn't have bulkDelete, so we'll delete individually
+                for (const message of recentMessages.values()) {
+                    try {
+                        await message.delete();
+                        deletedCount++;
+                        // Small delay to avoid rate limits
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    } catch (individualError) {
+                        console.warn(`Failed to delete message ${message.id}:`, individualError);
+                    }
+                }
             } catch (bulkError) {
                 console.warn('Could not bulk delete some messages, falling back to individual deletion:', bulkError);
                 // Fallback: delete messages individually
@@ -517,7 +526,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                const target = cmd.options.getUser('user', true);
+                const target = (cmd as any).options.getUser('user', true);
                 await cmd.reply({ content: `Starting intro flow for <@${target.id}>... (sending them a DM)`, ephemeral: true });
 
                 // Start the introduction flow for the target user

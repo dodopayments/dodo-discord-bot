@@ -1,0 +1,45 @@
+name: Docker Publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  docker_build_and_push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release tag
+        id: get_tag
+        run: echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build dodo-discord-bot image
+        run: |
+          docker build -t ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }} .
+          docker tag ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }} ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:latest
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+            credentials_json: "${{ secrets.SERVICE_ACCOUNT_KEY }}"
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+
+      - name: "Use gcloud CLI"
+        run: "gcloud info"
+
+      - name: "Docker auth"
+        run: |
+          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+
+      - name: Push dodo-discord-bot image to GAR
+        run: |
+          docker push ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }}
+          docker push ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:latest
