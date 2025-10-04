@@ -26,6 +26,8 @@
  * - The bot's role must be HIGHER than the Dodo Builder role in the role hierarchy.
  */
 
+
+import os from 'node:os';
 import {
     Client,
     GatewayIntentBits,
@@ -192,6 +194,9 @@ const client = new Client({
 // Track user completions: Map<userId, Set<'intro' | 'working'>>
 const userCompletions = new Map<string, Set<'intro' | 'working'>>();
 
+// Track bot start time for uptime calculation
+const botStartTime = Date.now();
+
 /**
  * Registers the slash commands with Discord
  */
@@ -214,6 +219,18 @@ async function registerCommands() {
         {
             name: 'clear-dm',
             description: 'Clear all DM messages from this bot for the current user.',
+        },
+        {
+            name: 'ping',
+            description: 'Check bot latency and performance metrics.',
+            options: [
+                {
+                    name: 'ephemeral',
+                    description: 'Make the response only visible to you',
+                    type: 5, // BOOLEAN type
+                    required: false,
+                }
+            ]
         }
     ];
 
@@ -221,10 +238,10 @@ async function registerCommands() {
         // Register commands either globally or for a specific guild
         if (GUILD_ID && client.guilds.cache.has(GUILD_ID)) {
             await rest.put(Routes.applicationGuildCommands(CLIENT_ID!, GUILD_ID), { body: commands });
-            console.log('Registered guild commands: /ping-intro, /clear-dm');
+            console.log('Registered guild commands: /ping-intro, /clear-dm, /ping');
         } else {
             await rest.put(Routes.applicationCommands(CLIENT_ID!), { body: commands });
-            console.log('Registered global commands: /ping-intro, /clear-dm');
+            console.log('Registered global commands: /ping-intro, /clear-dm, /ping');
         }
     } catch (err) {
         console.error('Failed to register commands', err);
@@ -739,6 +756,132 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.editReply({
                     content: result.message
                 });
+                return;
+            }
+
+            if (cmd.commandName === 'ping') {
+                const member = cmd.member as GuildMember | null;
+                if (!member) {
+                    await cmd.reply({ content: 'Could not verify your membership. You cannot run this command.', ephemeral: true });
+                    return;
+                }
+
+                // Check if user has moderator role
+                if (!member.roles.cache.has(MOD_ROLE_ID!)) {
+                    await cmd.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
+                    return;
+                }
+
+                const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
+                
+                // Record the time when we received the interaction
+                const interactionTime = Date.now();
+                
+                // Defer reply to measure latency
+                await cmd.deferReply({ ephemeral });
+                
+                // Calculate message round-trip latency from interaction creation time
+                const messageLatency = Date.now() - cmd.createdTimestamp;
+                
+                // Get API latency (WebSocket heartbeat ping). Can be -1 before heartbeat is established.
+                const apiLatency = client.ws.ping < 0 ? -1 : Math.round(client.ws.ping);
+                
+                // Calculate uptime
+                const uptime = Date.now() - botStartTime;
+                const uptimeSeconds = Math.floor(uptime / 1000);
+                const uptimeMinutes = Math.floor(uptimeSeconds / 60);
+                const uptimeHours = Math.floor(uptimeMinutes / 60);
+                const uptimeDays = Math.floor(uptimeHours / 24);
+                
+                // Format uptime string
+                let uptimeString = '';
+                if (uptimeDays > 0) uptimeString += `${uptimeDays}d `;
+                if (uptimeHours % 24 > 0) uptimeString += `${uptimeHours % 24}h `;
+                if (uptimeMinutes % 60 > 0) uptimeString += `${uptimeMinutes % 60}m `;
+                uptimeString += `${uptimeSeconds % 60}s`;
+                
+                // Determine latency status with emojis
+                const getLatencyStatus = (latency: number) => {
+                    if (latency < 100) return '🟢 Excellent';
+                    if (latency < 200) return '🟡 Good';
+                    if (latency < 300) return '🟠 Fair';
+                    return '🔴 Poor';
+                };
+                
+                // Additional derived metrics and values
+                const totalResponseTime = Date.now() - interactionTime;
+                const mem = process.memoryUsage();
+                const rssMb = (mem.rss / 1024 / 1024).toFixed(1);
+                const externalMb = (('external' in mem && typeof mem.external === 'number' ? mem.external : 0) / 1024 / 1024).toFixed(1);
+
+                // System memory (not process): used = total - free
+                const sysTotalBytes = os.totalmem();
+                const sysFreeBytes = os.freemem();
+                const sysUsedBytes = Math.max(0, sysTotalBytes - sysFreeBytes);
+                const sysUsedPct = Math.min(100, Math.max(0, Math.round((sysUsedBytes / sysTotalBytes) * 100)));
+                const sysUsedMb = (sysUsedBytes / 1024 / 1024).toFixed(1);
+                const sysTotalMb = (sysTotalBytes / 1024 / 1024).toFixed(1);
+                const unixNow = Math.floor(Date.now() / 1000);
+
+                const apiLatencyDisplay = apiLatency >= 0
+                    ? `${apiLatency}ms ${getLatencyStatus(apiLatency)}`
+                    : 'N/A';
+
+                const pingEmbed = new EmbedBuilder()
+                    .setColor(0x00ff00)
+                    .setTitle('Pong! System Status')
+                    .setThumbnail(cmd.user.displayAvatarURL())
+                    .setDescription([
+                        `Server: ${cmd.guild?.name ?? 'Direct Message'}`,
+                        `Command executed by: <@${cmd.user.id}>`
+                    ].join('\n'))
+                    .addFields(
+                        {
+                            name: 'Latency Metrics',
+                            value: [
+                                `API Latency: ${apiLatencyDisplay}`,
+                                `Message Latency: ${messageLatency}ms ${getLatencyStatus(messageLatency)}`,
+                                `Total Response Time: ${totalResponseTime}ms`
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: 'System Information',
+                            value: [
+                                `Uptime: ${uptimeString}`,
+                                `Memory Usage: ${sysUsedMb}MB / ${sysTotalMb}MB (${sysUsedPct}%)`,
+                                `RSS Memory: ${rssMb}MB`,
+                                `External Memory: ${externalMb}MB`
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: 'Bot Statistics',
+                            value: [
+                                `Cached Users: ${client.users.cache.size}`,
+                                `Cached Guilds: ${client.guilds.cache.size}`,
+                                `Node.js Version: ${process.version}`,
+                                `Platform: ${process.platform} ${process.arch}`
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: 'Timestamps',
+                            value: [
+                                `Unix Timestamp: <t:${unixNow}>`,
+                                `ISO 8601: ${new Date(unixNow * 1000).toISOString()}`,
+                                `Local Time: <t:${unixNow}:f>`
+                            ].join('\n'),
+                            inline: false
+                        }
+                    )
+                    .setTimestamp()
+                    .setFooter({
+                        text: `Dodo Discord Bot • Request ID: ${cmd.id}`,
+                        iconURL: client.user?.displayAvatarURL()
+                    });
+
+                await cmd.editReply({ embeds: [pingEmbed] });
                 return;
             }
         }
