@@ -48,6 +48,7 @@ import {
     ModalActionRowComponentBuilder,
     User,
     DMChannel,
+    EmbedBuilder,
 } from 'discord.js';
 
 const {
@@ -66,23 +67,104 @@ if (!DISCORD_TOKEN || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID 
     process.exit(1);
 }
 
-// Welcome message template
-const WELCOME_MESSAGE = `Hey @{username} 👋
+// Server post: Introduction embed (uses user mention and rich layout)
+function buildIntroEmbed(name: string, targetUserId: string, about: string): EmbedBuilder {
+    const introVariations = [
+        {
+            title: `Welcome to the Dodo family, ${name}!`,
+            section: `About ${name}:`,
+            footer: "Ready to build something amazing? Let's go!",
+        },
+        {
+            title: `Hey there, ${name}!`,
+            section: `Get to know ${name}:`,
+            footer: "Welcome to our community of builders and creators!",
+        },
+        {
+            title: `A warm welcome to ${name}!`,
+            section: `Meet ${name}:`,
+            footer: "Excited to see what you'll build with us!",
+        },
+        {
+            title: `Welcome aboard, ${name}!`,
+            section: `About ${name}:`,
+            footer: "Great to have another builder in our community! Let's create something awesome together!",
+        },
+        {
+            title: `Welcome to Dodo Payments, ${name}!`,
+            section: `Here's what ${name} shared:`,
+            footer: "We're thrilled to have you join our journey of building great products!",
+        },
+    ];
 
-Welcome to **Dodo Payments** - home for builders shipping great products.
+    const randomIndex = Math.floor(Math.random() * introVariations.length);
+    const v = introVariations[randomIndex];
 
-**Kick things off (≈60s):**
-→ **Fill Introduction** - who you are + what you're working on.
-→ **Fill What You're Working On** - share your current project; we'll open a public thread so others can follow and help.
+    const description = [
+        `__${v.section}__`,
+        `> ${about}`,
+    ].join('\n');
 
-🎁 **Perk:** Complete both to earn the **Dodo Builder** role.
+    return new EmbedBuilder()
+        .setColor(0x2b6cb0)
+        .setTitle(`${v.title} (<@${targetUserId}>)`)
+        .setDescription(description)
+        .setFooter({ text: v.footer });
+}
 
-**Notes**
-→ Your answers will be posted publicly - please avoid any sensitive info.
-→ Jump in anytime via #introductions, #working-on, or #get-help.
+// Server post: Working-on embed
+function buildWorkingOnEmbed(product: string, targetUserId: string, about: string): EmbedBuilder {
+    const workingVariations = [
+        { title: `New project: ${product}`, section: 'About this project:', footer: 'Join the discussion here!' },
+        { title: `Building: ${product}`, section: 'Project details:', footer: 'Share your thoughts in the thread!' },
+        { title: `Work in progress: ${product}`, section: "What it's about:", footer: "Let's discuss this together!" },
+        { title: `Project spotlight: ${product}`, section: 'Project overview:', footer: 'Join the conversation!' },
+        { title: `Fresh build: ${product}`, section: 'Here are the details:', footer: 'Share your feedback here!' },
+    ];
 
-Let's build great things together! 🚀
-`;
+    const randomIndex = Math.floor(Math.random() * workingVariations.length);
+    const v = workingVariations[randomIndex];
+
+    const description = [
+        `__${v.section}__`,
+        `> ${about}`,
+    ].join('\n');
+
+    return new EmbedBuilder()
+        .setColor(0x2f855a)
+        .setTitle(`${v.title} (<@${targetUserId}>)`)
+        .setDescription(description)
+        .setFooter({ text: v.footer });
+}
+
+// Welcome message embed builder for DMs (use full URLs so links work in DMs)
+function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
+    const introLink = `https://discord.com/channels/${guildId}/${INTRO_CHANNEL_ID}`;
+    const workingLink = `https://discord.com/channels/${guildId}/${WORKING_ON_CHANNEL_ID}`;
+    const getHelpId = process.env.GET_HELP_CHANNEL_ID;
+    const getHelpLink = getHelpId ? `https://discord.com/channels/${guildId}/${getHelpId}` : undefined;
+
+    const description = [
+        'Welcome to **Dodo Payments** — home for builders shipping great products.',
+        '',
+        '__Kick things off (≈60s):__',
+        `> - Fill Introduction — who you are + what you're working on.`,
+        `> - Fill What You're Working On — share your current project; we'll open a public thread so others can follow and help.`,
+        '',
+        '__Perk:__ Complete both to earn the Dodo Builder role.',
+        '',
+        '__Notes__',
+        '> - Your answers will be posted publicly — please avoid any sensitive info.',
+        `> - Jump in anytime via [#introductions](${introLink}), [#working-on](${workingLink})${getHelpLink ? `, [#get-help](${getHelpLink})` : ''}.`,
+        '',
+        "Let's build great things together!"
+    ].join('\n');
+
+    return new EmbedBuilder()
+        .setColor(0x2b6cb0)
+        .setTitle(`Hey <@${userId}>`)
+        .setDescription(description);
+}
 
 // Initialize Discord client with required intents
 const client = new Client({
@@ -373,15 +455,9 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton);
 
-        // Send welcome message with role incentive information
-        const personalizedWelcome = WELCOME_MESSAGE.replace('{username}', user.username);
-        await user.send({ content: personalizedWelcome });
-
-        // Send the interactive buttons for form selection
-        await user.send({
-            content: 'Choose which form to fill out (you can dismiss these messages):',
-            components: [row]
-        });
+        // Send welcome embed with interactive buttons in a single DM
+        const welcomeEmbed = buildWelcomeEmbed(targetUserId, guildId);
+        await user.send({ embeds: [welcomeEmbed], components: [row] });
 
     } catch (e) {
         console.error(`Failed to send DM to user ${targetUserId}:`, e);
@@ -466,10 +542,9 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
                 return;
             }
 
-            // Create and send the public introduction message with random variation
-            const publicMessage = generateIntroMessage(name, targetUserId, about);
-
-            await destChannel.send({ content: publicMessage });
+            // Create and send the public introduction embed
+            const introEmbed = buildIntroEmbed(name, targetUserId, about);
+            await destChannel.send({ embeds: [introEmbed] });
 
             const completions = userCompletions.get(targetUserId);
             const hasWorking = completions?.has('working');
@@ -496,9 +571,9 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             return;
         }
 
-        // Send working-on message with product and about combined (like intro message)
-        const workingMessage = generateWorkingOnMessage(product, targetUserId, about);
-        const parentMsg = await workingChannel.send({ content: workingMessage });
+        // Send working-on embed with product and about combined
+        const workingEmbed = buildWorkingOnEmbed(product, targetUserId, about);
+        const parentMsg = await workingChannel.send({ embeds: [workingEmbed] });
 
         // Create a PUBLIC thread from that parent message for community interaction
         const publicThread = await parentMsg.startThread({
