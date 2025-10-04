@@ -812,7 +812,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const totalResponseTime = Date.now() - interactionTime;
                 const mem = process.memoryUsage();
                 const rssMb = (mem.rss / 1024 / 1024).toFixed(1);
-                const externalMb = (((mem as any).external || 0) / 1024 / 1024).toFixed(1);
+                const externalMb = (('external' in mem && typeof mem.external === 'number' ? mem.external : 0) / 1024 / 1024).toFixed(1);
 
                 // System memory (not process): used = total - free
                 const sysTotalBytes = os.totalmem();
