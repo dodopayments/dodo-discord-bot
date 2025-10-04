@@ -26,6 +26,8 @@
  * - The bot's role must be HIGHER than the Dodo Builder role in the role hierarchy.
  */
 
+
+import os from 'node:os';
 import {
     Client,
     GatewayIntentBits,
@@ -778,11 +780,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 // Defer reply to measure latency
                 await cmd.deferReply({ ephemeral });
                 
-                // Calculate message round-trip latency
-                const messageLatency = Date.now() - interactionTime;
+                // Calculate message round-trip latency from interaction creation time
+                const messageLatency = Date.now() - cmd.createdTimestamp;
                 
-                // Get API latency (WebSocket heartbeat ping)
-                const apiLatency = Math.round(client.ws.ping);
+                // Get API latency (WebSocket heartbeat ping). Can be -1 before heartbeat is established.
+                const rawApiLatency = Math.round(client.ws.ping);
+                const apiLatency = rawApiLatency < 0 ? -1 : rawApiLatency;
                 
                 // Calculate uptime
                 const uptime = Date.now() - botStartTime;
@@ -809,14 +812,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 // Additional derived metrics and values
                 const totalResponseTime = Date.now() - interactionTime;
                 const mem = process.memoryUsage();
-                const heapUsedMb = Math.round(mem.heapUsed / 1024 / 1024);
-                const heapTotalMb = Math.round(mem.heapTotal / 1024 / 1024);
-                const heapPct = heapTotalMb > 0 ? Math.round((heapUsedMb / heapTotalMb) * 100) : 0;
-                const rssMb = Math.round(mem.rss / 1024 / 1024);
-                const externalMb = Math.round((mem as any).external / 1024 / 1024) || 0;
+                const rssMb = (mem.rss / 1024 / 1024).toFixed(1);
+                const externalMb = (((mem as any).external || 0) / 1024 / 1024).toFixed(1);
+
+                // System memory (not process): used = total - free
+                const sysTotalBytes = os.totalmem();
+                const sysFreeBytes = os.freemem();
+                const sysUsedBytes = Math.max(0, sysTotalBytes - sysFreeBytes);
+                const sysUsedPct = Math.min(100, Math.max(0, Math.round((sysUsedBytes / sysTotalBytes) * 100)));
+                const sysUsedMb = (sysUsedBytes / 1024 / 1024).toFixed(1);
+                const sysTotalMb = (sysTotalBytes / 1024 / 1024).toFixed(1);
                 const unixNow = Math.floor(Date.now() / 1000);
 
-                // Create comprehensive ping response (no emojis except latency status)
+                const apiLatencyDisplay = apiLatency >= 0
+                    ? `${apiLatency}ms ${getLatencyStatus(apiLatency)}`
+                    : 'N/A';
+
                 const pingEmbed = new EmbedBuilder()
                     .setColor(0x00ff00)
                     .setTitle('Pong! System Status')
@@ -829,7 +840,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         {
                             name: 'Latency Metrics',
                             value: [
-                                `API Latency: ${apiLatency}ms ${getLatencyStatus(apiLatency)}`,
+                                `API Latency: ${apiLatencyDisplay}`,
                                 `Message Latency: ${messageLatency}ms ${getLatencyStatus(messageLatency)}`,
                                 `Total Response Time: ${totalResponseTime}ms`
                             ].join('\n'),
@@ -839,7 +850,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             name: 'System Information',
                             value: [
                                 `Uptime: ${uptimeString}`,
-                                `Memory Usage: ${heapUsedMb}MB / ${heapTotalMb}MB (${heapPct}%)`,
+                                `Memory Usage: ${sysUsedMb}MB / ${sysTotalMb}MB (${sysUsedPct}%)`,
                                 `RSS Memory: ${rssMb}MB`,
                                 `External Memory: ${externalMb}MB`
                             ].join('\n'),
