@@ -141,12 +141,17 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
         .setFooter({ text: v.footer });
 }
 
+// Helper to build Discord channel URLs
+function buildChannelUrl(guildId: string, channelId: string | undefined): string {
+    return `https://discord.com/channels/${guildId}/${channelId}`;
+}
+
 // Welcome message embed builder for DMs (use full URLs so links work in DMs)
 function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
-    const introLink = `https://discord.com/channels/${guildId}/${INTRO_CHANNEL_ID}`;
-    const workingLink = `https://discord.com/channels/${guildId}/${WORKING_ON_CHANNEL_ID}`;
+    const introLink = buildChannelUrl(guildId, INTRO_CHANNEL_ID);
+    const workingLink = buildChannelUrl(guildId, WORKING_ON_CHANNEL_ID);
     const getHelpId = process.env.GET_HELP_CHANNEL_ID;
-    const getHelpLink = getHelpId ? `https://discord.com/channels/${guildId}/${getHelpId}` : undefined;
+    const getHelpLink = getHelpId ? buildChannelUrl(guildId, getHelpId) : undefined;
 
     const description = [
         `Hey <@${userId}>`,
