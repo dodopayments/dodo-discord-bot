@@ -758,6 +758,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             if (cmd.commandName === 'ping') {
+                const member = cmd.member as GuildMember | null;
+                if (!member) {
+                    await cmd.reply({ content: 'Could not verify your membership. You cannot run this command.', ephemeral: true });
+                    return;
+                }
+
+                // Check if user has moderator role
+                if (!member.roles.cache.has(MOD_ROLE_ID!)) {
+                    await cmd.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
+                    return;
+                }
+
                 const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
                 
                 // Record the time when we received the interaction
