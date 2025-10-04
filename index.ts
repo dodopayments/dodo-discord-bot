@@ -784,8 +784,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const messageLatency = Date.now() - cmd.createdTimestamp;
                 
                 // Get API latency (WebSocket heartbeat ping). Can be -1 before heartbeat is established.
-                const rawApiLatency = Math.round(client.ws.ping);
-                const apiLatency = rawApiLatency < 0 ? -1 : rawApiLatency;
+                const apiLatency = client.ws.ping < 0 ? -1 : Math.round(client.ws.ping);
                 
                 // Calculate uptime
                 const uptime = Date.now() - botStartTime;
