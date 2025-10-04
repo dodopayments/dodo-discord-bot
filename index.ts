@@ -101,13 +101,15 @@ function buildIntroEmbed(name: string, targetUserId: string, about: string): Emb
     const v = introVariations[randomIndex];
 
     const description = [
+        `${v.title} <@${targetUserId}>`,
+        '',
         `__${v.section}__`,
         `> ${about}`,
     ].join('\n');
 
     return new EmbedBuilder()
         .setColor(0x2b6cb0)
-        .setTitle(`${v.title} (<@${targetUserId}>)`)
+        .setTitle('New Introduction')
         .setDescription(description)
         .setFooter({ text: v.footer });
 }
@@ -126,13 +128,15 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
     const v = workingVariations[randomIndex];
 
     const description = [
+        `${v.title} <@${targetUserId}>`,
+        '',
         `__${v.section}__`,
         `> ${about}`,
     ].join('\n');
 
     return new EmbedBuilder()
         .setColor(0x2f855a)
-        .setTitle(`${v.title} (<@${targetUserId}>)`)
+        .setTitle('New Project')
         .setDescription(description)
         .setFooter({ text: v.footer });
 }
@@ -145,6 +149,8 @@ function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
     const getHelpLink = getHelpId ? `https://discord.com/channels/${guildId}/${getHelpId}` : undefined;
 
     const description = [
+        `Hey <@${userId}>`,
+        '',
         'Welcome to **Dodo Payments** — home for builders shipping great products.',
         '',
         '__Kick things off (≈60s):__',
@@ -162,7 +168,7 @@ function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
 
     return new EmbedBuilder()
         .setColor(0x2b6cb0)
-        .setTitle(`Hey <@${userId}>`)
+        .setTitle('Welcome to Dodo Payments!')
         .setDescription(description);
 }
 
