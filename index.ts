@@ -806,47 +806,72 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return '🔴 Poor';
                 };
                 
-                // Create comprehensive ping response
+                // Additional derived metrics and values
+                const totalResponseTime = Date.now() - interactionTime;
+                const mem = process.memoryUsage();
+                const heapUsedMb = Math.round(mem.heapUsed / 1024 / 1024);
+                const heapTotalMb = Math.round(mem.heapTotal / 1024 / 1024);
+                const heapPct = heapTotalMb > 0 ? Math.round((heapUsedMb / heapTotalMb) * 100) : 0;
+                const rssMb = Math.round(mem.rss / 1024 / 1024);
+                const externalMb = Math.round((mem as any).external / 1024 / 1024) || 0;
+                const unixNow = Math.floor(Date.now() / 1000);
+
+                // Create comprehensive ping response (no emojis except latency status)
                 const pingEmbed = new EmbedBuilder()
                     .setColor(0x00ff00)
-                    .setTitle('Pong!')
-                    .setDescription('Bot performance metrics and latency information')
+                    .setTitle('Pong! System Status')
+                    .setThumbnail(cmd.user.displayAvatarURL())
+                    .setDescription([
+                        `Server: ${cmd.guild?.name ?? 'Direct Message'}`,
+                        `Command executed by: <@${cmd.user.id}>`
+                    ].join('\n'))
                     .addFields(
                         {
-                            name: 'API Latency',
-                            value: `${apiLatency}ms ${getLatencyStatus(apiLatency)}`,
-                            inline: true
+                            name: 'Latency Metrics',
+                            value: [
+                                `API Latency: ${apiLatency}ms ${getLatencyStatus(apiLatency)}`,
+                                `Message Latency: ${messageLatency}ms ${getLatencyStatus(messageLatency)}`,
+                                `Total Response Time: ${totalResponseTime}ms`
+                            ].join('\n'),
+                            inline: false
                         },
                         {
-                            name: 'Message Latency',
-                            value: `${messageLatency}ms ${getLatencyStatus(messageLatency)}`,
-                            inline: true
+                            name: 'System Information',
+                            value: [
+                                `Uptime: ${uptimeString}`,
+                                `Memory Usage: ${heapUsedMb}MB / ${heapTotalMb}MB (${heapPct}%)`,
+                                `RSS Memory: ${rssMb}MB`,
+                                `External Memory: ${externalMb}MB`
+                            ].join('\n'),
+                            inline: false
                         },
                         {
-                            name: 'Uptime',
-                            value: uptimeString,
-                            inline: true
+                            name: 'Bot Statistics',
+                            value: [
+                                `Cached Users: ${client.users.cache.size}`,
+                                `Cached Guilds: ${client.guilds.cache.size}`,
+                                `Node.js Version: ${process.version}`,
+                                `Platform: ${process.platform} ${process.arch}`
+                            ].join('\n'),
+                            inline: false
                         },
                         {
-                            name: 'Memory Usage',
-                            value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                            inline: true
-                        },
-                        {
-                            name: 'Users',
-                            value: client.users.cache.size.toString(),
-                            inline: true
+                            name: 'Timestamps',
+                            value: [
+                                `Unix Timestamp: <t:${unixNow}>`,
+                                `ISO 8601: ${new Date(unixNow * 1000).toISOString()}`,
+                                `Local Time: <t:${unixNow}:f>`
+                            ].join('\n'),
+                            inline: false
                         }
                     )
                     .setTimestamp()
-                    .setFooter({ 
-                        text: `Dodo Discord Bot • Node.js ${process.version}`, 
-                        iconURL: client.user?.displayAvatarURL() 
+                    .setFooter({
+                        text: `Dodo Discord Bot • Request ID: ${cmd.id}`,
+                        iconURL: client.user?.displayAvatarURL()
                     });
 
-                await cmd.editReply({
-                    embeds: [pingEmbed]
-                });
+                await cmd.editReply({ embeds: [pingEmbed] });
                 return;
             }
         }
