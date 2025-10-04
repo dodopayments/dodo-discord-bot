@@ -192,6 +192,9 @@ const client = new Client({
 // Track user completions: Map<userId, Set<'intro' | 'working'>>
 const userCompletions = new Map<string, Set<'intro' | 'working'>>();
 
+// Track bot start time for uptime calculation
+const botStartTime = Date.now();
+
 /**
  * Registers the slash commands with Discord
  */
@@ -214,6 +217,18 @@ async function registerCommands() {
         {
             name: 'clear-dm',
             description: 'Clear all DM messages from this bot for the current user.',
+        },
+        {
+            name: 'ping',
+            description: 'Check bot latency and performance metrics.',
+            options: [
+                {
+                    name: 'ephemeral',
+                    description: 'Make the response only visible to you',
+                    type: 5, // BOOLEAN type
+                    required: false,
+                }
+            ]
         }
     ];
 
@@ -221,10 +236,10 @@ async function registerCommands() {
         // Register commands either globally or for a specific guild
         if (GUILD_ID && client.guilds.cache.has(GUILD_ID)) {
             await rest.put(Routes.applicationGuildCommands(CLIENT_ID!, GUILD_ID), { body: commands });
-            console.log('Registered guild commands: /ping-intro, /clear-dm');
+            console.log('Registered guild commands: /ping-intro, /clear-dm, /ping');
         } else {
             await rest.put(Routes.applicationCommands(CLIENT_ID!), { body: commands });
-            console.log('Registered global commands: /ping-intro, /clear-dm');
+            console.log('Registered global commands: /ping-intro, /clear-dm, /ping');
         }
     } catch (err) {
         console.error('Failed to register commands', err);
@@ -738,6 +753,87 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 await cmd.editReply({
                     content: result.message
+                });
+                return;
+            }
+
+            if (cmd.commandName === 'ping') {
+                const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
+                
+                // Record the time when we received the interaction
+                const interactionTime = Date.now();
+                
+                // Defer reply to measure latency
+                await cmd.deferReply({ ephemeral });
+                
+                // Calculate message round-trip latency
+                const messageLatency = Date.now() - interactionTime;
+                
+                // Get API latency (WebSocket heartbeat ping)
+                const apiLatency = Math.round(client.ws.ping);
+                
+                // Calculate uptime
+                const uptime = Date.now() - botStartTime;
+                const uptimeSeconds = Math.floor(uptime / 1000);
+                const uptimeMinutes = Math.floor(uptimeSeconds / 60);
+                const uptimeHours = Math.floor(uptimeMinutes / 60);
+                const uptimeDays = Math.floor(uptimeHours / 24);
+                
+                // Format uptime string
+                let uptimeString = '';
+                if (uptimeDays > 0) uptimeString += `${uptimeDays}d `;
+                if (uptimeHours % 24 > 0) uptimeString += `${uptimeHours % 24}h `;
+                if (uptimeMinutes % 60 > 0) uptimeString += `${uptimeMinutes % 60}m `;
+                uptimeString += `${uptimeSeconds % 60}s`;
+                
+                // Determine latency status with emojis
+                const getLatencyStatus = (latency: number) => {
+                    if (latency < 100) return '🟢 Excellent';
+                    if (latency < 200) return '🟡 Good';
+                    if (latency < 300) return '🟠 Fair';
+                    return '🔴 Poor';
+                };
+                
+                // Create comprehensive ping response
+                const pingEmbed = new EmbedBuilder()
+                    .setColor(0x00ff00)
+                    .setTitle('Pong!')
+                    .setDescription('Bot performance metrics and latency information')
+                    .addFields(
+                        {
+                            name: 'API Latency',
+                            value: `${apiLatency}ms ${getLatencyStatus(apiLatency)}`,
+                            inline: true
+                        },
+                        {
+                            name: 'Message Latency',
+                            value: `${messageLatency}ms ${getLatencyStatus(messageLatency)}`,
+                            inline: true
+                        },
+                        {
+                            name: 'Uptime',
+                            value: uptimeString,
+                            inline: true
+                        },
+                        {
+                            name: 'Memory Usage',
+                            value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+                            inline: true
+                        },
+                        {
+                            name: 'Users',
+                            value: client.users.cache.size.toString(),
+                            inline: true
+                        }
+                    )
+                    .setTimestamp()
+                    .setFooter({ 
+                        text: `Dodo Discord Bot • Node.js ${process.version}`, 
+                        iconURL: client.user?.displayAvatarURL() 
+                    });
+
+                await cmd.editReply({
+                    embeds: [pingEmbed]
                 });
                 return;
             }
