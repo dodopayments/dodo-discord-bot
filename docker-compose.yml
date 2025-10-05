@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  auto-thread-bot:
+    build: .
+    container_name: dodo-auto-thread-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist guild configs across container restarts
+      - ./configs:/app/configs
+    environment:
+      - NODE_ENV=production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Uncomment for healthcheck monitoring
+    # healthcheck:
+    #   test: ["CMD", "node", "-e", "console.log('healthy')"]
+    #   interval: 30s
+    #   timeout: 3s
+    #   retries: 3
+    #   start_period: 10s
