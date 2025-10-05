@@ -10,16 +10,13 @@
  * - Rate limiting and error handling
  */
 
-import dotenv from 'dotenv';
-import { Client, GatewayIntentBits, Events, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { handleMessageCreate } from './handlers/messageCreate.js';
 import { handleMessageUpdate } from './handlers/messageUpdate.js';
 import { handleMessageDelete } from './handlers/messageDelete.js';
 import { handleInteractionCreate } from './handlers/interactionCreate.js';
 import { autoThreadCommand } from './commands/auto-thread.js';
-
-// Load environment variables
-dotenv.config();
+import { pingIntroCommand, clearDmCommand } from './commands/intro.js';
 
 // Environment variables
 const { DISCORD_TOKEN, CLIENT_ID } = process.env;
@@ -44,7 +41,24 @@ const client = new Client({
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN!);
 
-  const commands = [autoThreadCommand];
+  // Inline ping command (kept here to match prior codebase style)
+  const pingJson = new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Check bot latency and system metrics')
+    .addBooleanOption((opt) =>
+      opt
+        .setName('ephemeral')
+        .setDescription('Show the result only to you (default: false)')
+        .setRequired(false)
+    )
+    .toJSON();
+
+  const commands = [
+    autoThreadCommand,
+    pingIntroCommand.toJSON(),
+    clearDmCommand.toJSON(),
+    pingJson,
+  ];
 
   try {
     console.log('Registering slash commands...');
