@@ -145,50 +145,39 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
         .setFooter({ text: v.footer });
 }
 
-// Helper to build Discord channel URLs
 function buildChannelUrl(guildId: string, channelId: string | undefined): string {
     return `https://discord.com/channels/${guildId}/${channelId}`;
 }
 
 // Welcome message embed builder for DMs (use full URLs so links work in DMs)
-async function buildWelcomeEmbed(userId: string, guildId: string): Promise<EmbedBuilder> {
+function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
     const introLink = buildChannelUrl(guildId, INTRO_CHANNEL_ID);
     const workingLink = buildChannelUrl(guildId, WORKING_ON_CHANNEL_ID);
     const getHelpId = process.env.GET_HELP_CHANNEL_ID;
     const getHelpLink = getHelpId ? buildChannelUrl(guildId, getHelpId) : undefined;
-    // Ensure we have a guild object (cache may miss)
-    const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-    const serverIcon = guild?.iconURL({ size: 256 }) || undefined;
 
     const description = [
         `Hey <@${userId}>`,
         '',
         'Welcome to **Dodo Payments** — home for builders shipping great products.',
         '',
-        '__**Kick things off (≈60s):**__',
+        '__Kick things off (≈60s):__',
         `> - Fill Introduction — who you are + what you're working on.`,
         `> - Fill What You're Working On — share your current project; we'll open a public thread so others can follow and help.`,
         '',
-        '__**Perk:**__ Complete both to earn the Dodo Builder role.',
+        '__Perk:__ Complete both to earn the Dodo Builder role.',
         '',
-        '__**Notes**__',
+        '__Notes__',
         '> - Your answers will be posted publicly — please avoid any sensitive info.',
         `> - Jump in anytime via [#introductions](${introLink}), [#working-on](${workingLink})${getHelpLink ? `, [#get-help](${getHelpLink})` : ''}.`,
         '',
         "Let's build great things together!"
     ].join('\n');
 
-    const embed = new EmbedBuilder()
+    return new EmbedBuilder()
         .setColor(0x2b6cb0)
         .setTitle('Welcome to Dodo Payments!')
         .setDescription(description);
-
-    if (serverIcon) {
-        embed.setThumbnail(serverIcon);
-        embed.setAuthor({ name: guild?.name ?? 'Server', iconURL: serverIcon });
-    }
-
-    return embed;
 }
 
 // Initialize Discord client with required intents
@@ -499,7 +488,7 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton);
 
         // Send welcome embed with interactive buttons in a single DM
-        const welcomeEmbed = await buildWelcomeEmbed(targetUserId, guildId);
+        const welcomeEmbed = buildWelcomeEmbed(targetUserId, guildId);
         await user.send({ embeds: [welcomeEmbed], components: [row] });
 
     } catch (e) {
@@ -739,7 +728,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         // Handle slash commands
         if (interaction.isCommand()) {
-            const cmd = interaction as CommandInteraction;
+            const cmd = interaction;
 
             if (cmd.commandName === 'ping-intro') {
                 const member = cmd.member as GuildMember | null;
@@ -754,7 +743,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                const target = (cmd as any).options.getUser('user', true);
+                const target = cmd.isChatInputCommand() ? cmd.options.getUser('user', true) : cmd.user;
                 await cmd.reply({ content: `Starting intro flow for <@${target.id}>... (sending them a DM)`, ephemeral: true });
 
                 // Start the introduction flow for the target user
