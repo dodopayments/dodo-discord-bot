@@ -28,6 +28,8 @@
 
 
 import os from 'node:os';
+import { autoThreadCommand, handleAutoThreadCommand } from './src/commands/auto-thread.js';
+import { createThreadForMessage } from './src/services/threadService.js';
 import {
     Client,
     GatewayIntentBits,
@@ -105,7 +107,7 @@ function buildIntroEmbed(name: string, targetUserId: string, about: string): Emb
     const description = [
         `${v.title} <@${targetUserId}>`,
         '',
-        `__${v.section}__`,
+        `__**${v.section}**__`,
         `> ${about}`,
     ].join('\n');
 
@@ -143,7 +145,6 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
         .setFooter({ text: v.footer });
 }
 
-// Helper to build Discord channel URLs
 function buildChannelUrl(guildId: string, channelId: string | undefined): string {
     return `https://discord.com/channels/${guildId}/${channelId}`;
 }
@@ -232,6 +233,9 @@ async function registerCommands() {
                 }
             ]
         }
+        ,
+        // Auto-thread command (new addition)
+        autoThreadCommand
     ];
 
     try {
@@ -724,7 +728,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         // Handle slash commands
         if (interaction.isCommand()) {
-            const cmd = interaction as CommandInteraction;
+            const cmd = interaction;
 
             if (cmd.commandName === 'ping-intro') {
                 const member = cmd.member as GuildMember | null;
@@ -739,7 +743,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                const target = (cmd as any).options.getUser('user', true);
+                const target = cmd.isChatInputCommand() ? cmd.options.getUser('user', true) : cmd.user;
                 await cmd.reply({ content: `Starting intro flow for <@${target.id}>... (sending them a DM)`, ephemeral: true });
 
                 // Start the introduction flow for the target user
@@ -884,6 +888,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.editReply({ embeds: [pingEmbed] });
                 return;
             }
+
+            if (cmd.commandName === 'auto-thread') {
+                // Defer handled inside handler as needed
+                // Cast to appropriate type and forward to the modular handler
+                await handleAutoThreadCommand(cmd as any);
+                return;
+            }
         }
     } catch (err) {
         console.error('Error handling interaction:', err);
@@ -897,6 +908,17 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
         await autoPingIntroForNewUser(member);
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
+    }
+});
+
+// Auto-thread only: create threads for normal messages per config
+client.on(Events.MessageCreate, async (message) => {
+    try {
+        if (!message.guild) return;
+        if (message.channel.isThread()) return;
+        await createThreadForMessage(message);
+    } catch (e) {
+        console.error('MessageCreate error:', e);
     }
 });
 
