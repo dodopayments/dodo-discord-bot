@@ -33,16 +33,16 @@ class RateLimitQueue {
         await this.sleep(100); // Small delay between successful tasks
       } catch (err: any) {
         console.error('Task failed:', err);
-        
+
         // Check if it's a rate limit error
         if (err.code === 429 || err.status === 429) {
           const retryAfter = err.retryAfter ? err.retryAfter * 1000 : this.retryDelay;
           console.warn(`Rate limited, retrying after ${retryAfter}ms`);
-          
+
           // Re-queue the task
           this.queue.unshift(task);
           await this.sleep(retryAfter);
-          
+
           // Exponential backoff
           this.retryDelay = Math.min(this.retryDelay * 2, 60000);
         }
@@ -96,8 +96,8 @@ export function generateThreadTitle(message: Message, template?: string): string
   const first100 = content.slice(0, 100).trim() || 'New thread';
 
   if (!template) {
-    // Default fallback: "${author.username} • ${first50}"
-    return `${author.username} • ${first50}`.slice(0, 100);
+    // Default fallback: "${first50}"
+    return `${first50}`.slice(0, 100);
   }
 
   // Replace template variables
@@ -131,14 +131,14 @@ export async function createThreadForMessage(message: Message): Promise<ThreadCh
     // Check permissions
     const channel = message.channel as TextChannel;
     const botMember = message.guild.members.me;
-    
+
     if (!botMember) {
       console.error('Bot member not found in guild');
       return null;
     }
 
     const permissions = channel.permissionsFor(botMember);
-    
+
     if (!permissions) {
       console.error('Could not get permissions for channel');
       return null;
@@ -146,13 +146,13 @@ export async function createThreadForMessage(message: Message): Promise<ThreadCh
 
     if (!permissions.has(PermissionsBitField.Flags.CreatePublicThreads)) {
       console.warn(`Missing CreatePublicThreads permission in channel ${channel.name}`);
-      
+
       // Try to notify an admin (find first user with ManageGuild permission)
       try {
-        const admins = channel.members.filter(member => 
+        const admins = channel.members.filter(member =>
           member.permissions.has(PermissionsBitField.Flags.ManageGuild)
         );
-        
+
         if (admins.size > 0) {
           const admin = admins.first();
           await admin?.send(
@@ -166,7 +166,7 @@ export async function createThreadForMessage(message: Message): Promise<ThreadCh
       } catch (err) {
         // Ignore notification errors
       }
-      
+
       return null;
     }
 
@@ -186,7 +186,7 @@ export async function createThreadForMessage(message: Message): Promise<ThreadCh
         const replyText = config.replyMessage
           .replace(/\$\{author\}/g, `<@${message.author.id}>`)
           .replace(/\$\{author\.username\}/g, message.author.username);
-        
+
         await thread.send(replyText).catch(err => {
           console.error('Failed to send reply message:', err);
         });
@@ -218,7 +218,7 @@ export async function updateThreadTitle(
     }
 
     const newTitle = generateThreadTitle(message, config.titleTemplate);
-    
+
     if (thread.name !== newTitle) {
       await rateLimitQueue.enqueue(async () => {
         await thread.setName(newTitle);

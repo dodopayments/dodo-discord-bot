@@ -181,7 +181,7 @@ export async function handleAutoThreadCommand(interaction: ChatInputCommandInter
     }
   } catch (err) {
     console.error('Error handling auto-thread command:', err);
-    await interaction.followUp('❌ An error occurred while processing your command.').catch(() => {});
+    await interaction.followUp('❌ An error occurred while processing your command.').catch(() => { });
   }
 }
 
@@ -257,7 +257,7 @@ async function handleSetSubcommand(
 
     case 'archiveduration': {
       const duration = interaction.options.getInteger('duration', true) as 60 | 1440 | 4320 | 10080;
-      
+
       if (!VALID_ARCHIVE_DURATIONS.includes(duration)) {
         await interaction.followUp(
           '❌ Invalid duration. Must be 60, 1440, 4320, or 10080 minutes.'
@@ -320,7 +320,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
         name: 'Title Template',
         value: config.titleTemplate
           ? `\`${config.titleTemplate}\``
-          : '_Default: `${author.username} • ${first50}`_',
+          : '_Default: `${first50}`_',
         inline: false,
       },
       {
