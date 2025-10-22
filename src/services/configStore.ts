@@ -12,7 +12,6 @@ const CONFIG_DIR = path.join(process.cwd(), 'configs');
 // Default configuration for new guilds
 const DEFAULT_CONFIG: Omit<GuildConfig, 'guildId'> = {
   enabledChannels: [],
-  includeBots: false,
   archiveDuration: 1440, // 24 hours
   manuallyRenamedThreads: new Set(),
 };

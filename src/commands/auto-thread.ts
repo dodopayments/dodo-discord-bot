@@ -55,19 +55,6 @@ export const autoThreadCommand = {
       type: 2, // SUB_COMMAND_GROUP
       options: [
         {
-          name: 'includebots',
-          description: 'Include or exclude bot messages',
-          type: 1, // SUB_COMMAND
-          options: [
-            {
-              name: 'enabled',
-              description: 'Should bot messages trigger thread creation?',
-              type: 5, // BOOLEAN
-              required: true,
-            },
-          ],
-        },
-        {
           name: 'replymessage',
           description: 'Set reply message template',
           type: 1, // SUB_COMMAND
@@ -229,16 +216,6 @@ async function handleSetSubcommand(
   const config = await configStore.get(interaction.guild!.id);
 
   switch (subcommand) {
-    case 'includebots': {
-      const enabled = interaction.options.getBoolean('enabled', true);
-      config.includeBots = enabled;
-      await configStore.set(interaction.guild!.id, config);
-      await interaction.followUp(
-        ` Bot messages ${enabled ? 'will' : 'will not'} trigger thread creation.`
-      );
-      break;
-    }
-
     case 'replymessage': {
       const template = interaction.options.getString('template');
       config.replyMessage = template ?? undefined;
@@ -313,11 +290,6 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
           ? config.enabledChannels.map(id => `<#${id}>`).join(', ')
           : 'None',
         inline: false,
-      },
-      {
-        name: 'Include Bot Messages',
-        value: config.includeBots ? 'Yes' : 'No',
-        inline: true,
       },
       {
         name: 'Archive Duration',

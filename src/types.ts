@@ -5,7 +5,6 @@
 export interface GuildConfig {
   guildId: string;
   enabledChannels: string[]; // Channel IDs where auto-threading is enabled
-  includeBots: boolean; // Whether to create threads for bot messages
   titleTemplate?: string; // Template for thread titles, e.g., "${author.username} • ${first50}"
   replyMessage?: string; // Template for reply message with variables
   archiveDuration: 60 | 1440 | 4320 | 10080; // Archive duration in minutes (1h, 24h, 3d, 7d)

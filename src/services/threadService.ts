@@ -73,11 +73,6 @@ export function shouldCreateThread(message: Message, config: GuildConfig): boole
     return false;
   }
 
-  // Check bot message policy
-  if (message.author.bot && !config.includeBots) {
-    return false;
-  }
-
   // Don't create threads for system messages
   if (message.system) {
     return false;
