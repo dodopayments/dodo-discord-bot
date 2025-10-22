@@ -242,13 +242,14 @@ async function registerCommands() {
     ];
 
     try {
+        const commandNames = commands.map(cmd => `/${cmd.name}`).join(', ');
         // Register commands either globally or for a specific guild
         if (GUILD_ID && client.guilds.cache.has(GUILD_ID)) {
             await rest.put(Routes.applicationGuildCommands(CLIENT_ID!, GUILD_ID), { body: commands });
-            console.log('Registered guild commands: /ping-intro, /clear-dm, /ping');
+            console.log(`Registered guild commands: ${commandNames}`);
         } else {
             await rest.put(Routes.applicationCommands(CLIENT_ID!), { body: commands });
-            console.log('Registered global commands: /ping-intro, /clear-dm, /ping');
+            console.log(`Registered global commands: ${commandNames}`);
         }
     } catch (err) {
         console.error('Failed to register commands', err);
