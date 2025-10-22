@@ -76,7 +76,7 @@ export const autoThreadCommand = {
               name: 'template',
               description: 'Template with variables: ${author}, ${author.username}',
               type: 3, // STRING
-              required: true,
+              required: false,
             },
           ],
         },
@@ -89,7 +89,7 @@ export const autoThreadCommand = {
               name: 'template',
               description: 'Template: ${author.username}, ${first50}, ${first100}, ${channel.name}',
               type: 3, // STRING
-              required: true,
+              required: false,
             },
           ],
         },
@@ -234,24 +234,32 @@ async function handleSetSubcommand(
       config.includeBots = enabled;
       await configStore.set(interaction.guild!.id, config);
       await interaction.followUp(
-        `✅ Bot messages ${enabled ? 'will' : 'will not'} trigger thread creation.`
+        ` Bot messages ${enabled ? 'will' : 'will not'} trigger thread creation.`
       );
       break;
     }
 
     case 'replymessage': {
-      const template = interaction.options.getString('template', true);
-      config.replyMessage = template;
+      const template = interaction.options.getString('template');
+      config.replyMessage = template ?? undefined;
       await configStore.set(interaction.guild!.id, config);
-      await interaction.followUp(`✅ Reply message template set to:\n\`\`\`\n${template}\n\`\`\``);
+      await interaction.followUp(
+        template
+          ? ` Reply message template set to:\n\`\`\`\n${template}\n\`\`\``
+          : ' Reply message template cleared. '
+      );
       break;
     }
 
     case 'titletemplate': {
-      const template = interaction.options.getString('template', true);
-      config.titleTemplate = template;
+      const template = interaction.options.getString('template');
+      config.titleTemplate = template ?? undefined;
       await configStore.set(interaction.guild!.id, config);
-      await interaction.followUp(`✅ Title template set to:\n\`\`\`\n${template}\n\`\`\``);
+      await interaction.followUp(
+        template
+          ? ` Title template set to:\n\`\`\`\n${template}\n\`\`\``
+          : ' Title template cleared.'
+      );
       break;
     }
 
@@ -260,7 +268,7 @@ async function handleSetSubcommand(
 
       if (!VALID_ARCHIVE_DURATIONS.includes(duration)) {
         await interaction.followUp(
-          '❌ Invalid duration. Must be 60, 1440, 4320, or 10080 minutes.'
+          ' Invalid duration. Must be 60, 1440, 4320, or 10080 minutes.'
         );
         return;
       }
@@ -275,7 +283,7 @@ async function handleSetSubcommand(
         10080: '7 days',
       };
 
-      await interaction.followUp(`✅ Archive duration set to ${durationNames[duration]}.`);
+      await interaction.followUp(` Archive duration set to ${durationNames[duration]}.`);
       break;
     }
 
@@ -308,7 +316,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
       },
       {
         name: 'Include Bot Messages',
-        value: config.includeBots ? '✅ Yes' : '❌ No',
+        value: config.includeBots ? 'Yes' : 'No',
         inline: true,
       },
       {
@@ -363,7 +371,7 @@ async function handleTest(interaction: ChatInputCommandInteraction): Promise<voi
   const channel = interaction.options.getChannel('channel', true) as TextChannel;
 
   if (channel.type !== ChannelType.GuildText) {
-    await interaction.followUp('❌ Can only test in text channels.');
+    await interaction.followUp('Can only test in text channels.');
     return;
   }
 
@@ -371,7 +379,7 @@ async function handleTest(interaction: ChatInputCommandInteraction): Promise<voi
 
   if (!config.enabledChannels.includes(channel.id)) {
     await interaction.followUp(
-      `❌ Auto-threading is not enabled in <#${channel.id}>.\n` +
+      `Auto-threading is not enabled in <#${channel.id}>.\n` +
       `Enable it first with \`/auto-thread enable\`.`
     );
     return;
@@ -380,14 +388,14 @@ async function handleTest(interaction: ChatInputCommandInteraction): Promise<voi
   // Check permissions
   const botMember = interaction.guild!.members.me;
   if (!botMember) {
-    await interaction.followUp('❌ Could not verify bot permissions.');
+    await interaction.followUp('Could not verify bot permissions.');
     return;
   }
 
   const permissions = channel.permissionsFor(botMember);
   if (!permissions?.has(PermissionsBitField.Flags.CreatePublicThreads)) {
     await interaction.followUp(
-      `❌ Missing permission: **Create Public Threads** in <#${channel.id}>.\n` +
+      `Missing permission: **Create Public Threads** in <#${channel.id}>.\n` +
       `Please grant this permission to the bot.`
     );
     return;
@@ -403,13 +411,13 @@ async function handleTest(interaction: ChatInputCommandInteraction): Promise<voi
 
   if (thread) {
     await interaction.followUp(
-      `✅ Test successful!\n\n` +
+      `Test successful!\n\n` +
       `Created thread: <#${thread.id}>\n` +
       `Original message: ${testMessage.url}`
     );
   } else {
     await interaction.followUp(
-      `❌ Test failed. Could not create thread.\n` +
+      `Test failed. Could not create thread.\n` +
       `Check bot permissions and configuration.`
     );
   }
