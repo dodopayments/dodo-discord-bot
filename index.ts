@@ -54,6 +54,9 @@ import {
     DMChannel,
     EmbedBuilder,
 } from 'discord.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const {
     DISCORD_TOKEN,
@@ -777,33 +780,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
 
                 const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
-                
+
                 // Record the time when we received the interaction
                 const interactionTime = Date.now();
-                
+
                 // Defer reply to measure latency
                 await cmd.deferReply({ ephemeral });
-                
+
                 // Calculate message round-trip latency from interaction creation time
                 const messageLatency = Date.now() - cmd.createdTimestamp;
-                
+
                 // Get API latency (WebSocket heartbeat ping). Can be -1 before heartbeat is established.
                 const apiLatency = client.ws.ping < 0 ? -1 : Math.round(client.ws.ping);
-                
+
                 // Calculate uptime
                 const uptime = Date.now() - botStartTime;
                 const uptimeSeconds = Math.floor(uptime / 1000);
                 const uptimeMinutes = Math.floor(uptimeSeconds / 60);
                 const uptimeHours = Math.floor(uptimeMinutes / 60);
                 const uptimeDays = Math.floor(uptimeHours / 24);
-                
+
                 // Format uptime string
                 let uptimeString = '';
                 if (uptimeDays > 0) uptimeString += `${uptimeDays}d `;
                 if (uptimeHours % 24 > 0) uptimeString += `${uptimeHours % 24}h `;
                 if (uptimeMinutes % 60 > 0) uptimeString += `${uptimeMinutes % 60}m `;
                 uptimeString += `${uptimeSeconds % 60}s`;
-                
+
                 // Determine latency status with emojis
                 const getLatencyStatus = (latency: number) => {
                     if (latency < 100) return '🟢 Excellent';
@@ -811,7 +814,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (latency < 300) return '🟠 Fair';
                     return '🔴 Poor';
                 };
-                
+
                 // Additional derived metrics and values
                 const totalResponseTime = Date.now() - interactionTime;
                 const mem = process.memoryUsage();
