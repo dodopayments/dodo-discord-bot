@@ -1,3 +1,13 @@
 node_modules
 .env
 .DS_Store
+dist
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+configs/*.json
+!jest.config.js
+coverage
+.npm
+.eslintcache
