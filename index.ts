@@ -69,8 +69,8 @@ const {
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
     process.exit(1);
 }
 
