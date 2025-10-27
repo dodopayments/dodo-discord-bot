@@ -210,13 +210,37 @@ async function registerCommands() {
     const commands = [
         {
             name: 'ping-intro',
-            description: 'Ping a user to introduce themselves (mods only).',
+            description: 'Ping user(s) to introduce themselves (mods only).',
             options: [
                 {
-                    name: 'user',
-                    description: 'User to ping',
+                    name: 'user1',
+                    description: 'First user to ping',
                     type: 6, // USER type
-                    required: true,
+                    required: false,
+                },
+                {
+                    name: 'user2',
+                    description: 'Second user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user3',
+                    description: 'Third user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user4',
+                    description: 'Fourth user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user5',
+                    description: 'Fifth user to ping',
+                    type: 6, // USER type
+                    required: false,
                 },
             ],
         },
@@ -741,22 +765,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                // Check if user has moderator role
                 if (!member.roles.cache.has(MOD_ROLE_ID!)) {
                     await cmd.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
                     return;
                 }
 
-                const target = cmd.isChatInputCommand() ? cmd.options.getUser('user', true) : cmd.user;
-                await cmd.reply({ content: `Starting intro flow for <@${target.id}>... (sending them a DM)`, ephemeral: true });
+                const targets: string[] = [];
+                for (let i = 1; i <= 5; i++) {
+                    const user = cmd.isChatInputCommand() ? cmd.options.getUser(`user${i}`) : null;
+                    if (user) {
+                        targets.push(user.id);
+                    }
+                }
 
-                // Start the introduction flow for the target user
-                await startIntroFlow(cmd.guildId || GUILD_ID!, target.id);
+                if (targets.length === 0) {
+                    targets.push(cmd.user.id);
+                }
+
+                await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
+
+                for (const targetId of targets) {
+                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
+                }
                 return;
             }
 
             if (cmd.commandName === 'clear-dm') {
-                // Defer the reply as this operation might take some time
                 await cmd.deferReply({ ephemeral: true });
 
                 const result = await clearDMMessages(cmd.user.id);

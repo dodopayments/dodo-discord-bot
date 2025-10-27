@@ -9,12 +9,36 @@ import { grantBuilderRole, postWorkingThread, startIntroFlow } from '../features
 
 export const pingIntroCommand = new SlashCommandBuilder()
   .setName('ping-intro')
-  .setDescription('Start the intro + working-on DM flow for a user')
+  .setDescription('Start the intro + working-on DM flow for user(s)')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addUserOption((opt) =>
     opt
-      .setName('user')
-      .setDescription('User to DM (defaults to yourself)')
+      .setName('user1')
+      .setDescription('First user to DM')
+      .setRequired(false)
+  )
+  .addUserOption((opt) =>
+    opt
+      .setName('user2')
+      .setDescription('Second user to DM')
+      .setRequired(false)
+  )
+  .addUserOption((opt) =>
+    opt
+      .setName('user3')
+      .setDescription('Third user to DM')
+      .setRequired(false)
+  )
+  .addUserOption((opt) =>
+    opt
+      .setName('user4')
+      .setDescription('Fourth user to DM')
+      .setRequired(false)
+  )
+  .addUserOption((opt) =>
+    opt
+      .setName('user5')
+      .setDescription('Fifth user to DM')
       .setRequired(false)
   );
 
@@ -26,12 +50,24 @@ export const clearDmCommand = new SlashCommandBuilder()
 export async function handlePingIntro(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const target = interaction.options.getUser('user') ?? interaction.user;
+  const targets: User[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const user = interaction.options.getUser(`user${i}`);
+    if (user) {
+      targets.push(user);
+    }
+  }
+
+  if (targets.length === 0) {
+    targets.push(interaction.user);
+  }
+
   const guild = interaction.guild!;
 
-  // Optional mod role gate
   const modRoleId = process.env.MOD_ROLE_ID;
-  if (interaction.user.id !== target.id && modRoleId) {
+  const hasTargetsOtherThanSelf = targets.some(user => user.id !== interaction.user.id);
+  
+  if (hasTargetsOtherThanSelf && modRoleId) {
     const member = interaction.member as GuildMember;
     if (!member.roles.cache.has(modRoleId)) {
       await interaction.followUp({ content: '❌ You need the moderator role to ping intro for others.', ephemeral: true });
@@ -39,31 +75,33 @@ export async function handlePingIntro(interaction: ChatInputCommandInteraction):
     }
   }
 
-  const result = await startIntroFlow(target, guild);
-  if (!result) {
-    await interaction.followUp('⚠️ Could not DM the user or the flow was cancelled. They may have DMs disabled.');
-    return;
+  const results: string[] = [];
+  
+  for (const target of targets) {
+    const result = await startIntroFlow(target, guild);
+    if (!result) {
+      results.push(`⚠️ Could not DM ${target} or the flow was cancelled. They may have DMs disabled.`);
+      continue;
+    }
+
+    let threadId: string | null = null;
+    try {
+      threadId = await postWorkingThread(guild, target, result.project);
+    } catch {}
+
+    let roleGranted = false;
+    try {
+      roleGranted = await grantBuilderRole(guild, target.id);
+    } catch {}
+
+    const userResults: string[] = [`✅ Intro flow completed for ${target}.`];
+    if (roleGranted) userResults.push('• Granted Dodo Builder role.');
+    if (threadId) userResults.push(`• Started thread: <#${threadId}>`);
+    
+    results.push(userResults.join('\n'));
   }
 
-  // Post working thread (optional)
-  let threadId: string | null = null;
-  try {
-    threadId = await postWorkingThread(guild, target, result.project);
-  } catch {}
-
-  // Grant role (optional)
-  let roleGranted = false;
-  try {
-    roleGranted = await grantBuilderRole(guild, target.id);
-  } catch {}
-
-  await interaction.followUp(
-    [
-      `✅ Intro flow completed for ${target}.`,
-      roleGranted ? '• Granted Dodo Builder role.' : '• Could not grant role or not configured.',
-      threadId ? `• Started thread: <#${threadId}>` : '• Could not start thread or not configured.',
-    ].join('\n')
-  );
+  await interaction.followUp(results.join('\n\n'));
 }
 
 export async function handleClearDm(interaction: ChatInputCommandInteraction): Promise<void> {
