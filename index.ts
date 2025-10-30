@@ -28,6 +28,8 @@
 
 
 import os from 'node:os';
+import { autoThreadCommand, handleAutoThreadCommand } from './src/commands/auto-thread.js';
+import { createThreadForMessage } from './src/services/threadService.js';
 import {
     Client,
     GatewayIntentBits,
@@ -52,6 +54,9 @@ import {
     DMChannel,
     EmbedBuilder,
 } from 'discord.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const {
     DISCORD_TOKEN,
@@ -64,8 +69,8 @@ const {
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
     process.exit(1);
 }
 
@@ -105,7 +110,7 @@ function buildIntroEmbed(name: string, targetUserId: string, about: string): Emb
     const description = [
         `${v.title} <@${targetUserId}>`,
         '',
-        `__${v.section}__`,
+        `__**${v.section}**__`,
         `> ${about}`,
     ].join('\n');
 
@@ -143,7 +148,6 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
         .setFooter({ text: v.footer });
 }
 
-// Helper to build Discord channel URLs
 function buildChannelUrl(guildId: string, channelId: string | undefined): string {
     return `https://discord.com/channels/${guildId}/${channelId}`;
 }
@@ -206,13 +210,37 @@ async function registerCommands() {
     const commands = [
         {
             name: 'ping-intro',
-            description: 'Ping a user to introduce themselves (mods only).',
+            description: 'Ping user(s) to introduce themselves (mods only).',
             options: [
                 {
-                    name: 'user',
-                    description: 'User to ping',
+                    name: 'user1',
+                    description: 'First user to ping',
                     type: 6, // USER type
-                    required: true,
+                    required: false,
+                },
+                {
+                    name: 'user2',
+                    description: 'Second user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user3',
+                    description: 'Third user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user4',
+                    description: 'Fourth user to ping',
+                    type: 6, // USER type
+                    required: false,
+                },
+                {
+                    name: 'user5',
+                    description: 'Fifth user to ping',
+                    type: 6, // USER type
+                    required: false,
                 },
             ],
         },
@@ -232,16 +260,20 @@ async function registerCommands() {
                 }
             ]
         }
+        ,
+        // Auto-thread command (new addition)
+        autoThreadCommand
     ];
 
     try {
+        const commandNames = commands.map(cmd => `/${cmd.name}`).join(', ');
         // Register commands either globally or for a specific guild
         if (GUILD_ID && client.guilds.cache.has(GUILD_ID)) {
             await rest.put(Routes.applicationGuildCommands(CLIENT_ID!, GUILD_ID), { body: commands });
-            console.log('Registered guild commands: /ping-intro, /clear-dm, /ping');
+            console.log(`Registered guild commands: ${commandNames}`);
         } else {
             await rest.put(Routes.applicationCommands(CLIENT_ID!), { body: commands });
-            console.log('Registered global commands: /ping-intro, /clear-dm, /ping');
+            console.log(`Registered global commands: ${commandNames}`);
         }
     } catch (err) {
         console.error('Failed to register commands', err);
@@ -724,7 +756,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         // Handle slash commands
         if (interaction.isCommand()) {
-            const cmd = interaction as CommandInteraction;
+            const cmd = interaction;
 
             if (cmd.commandName === 'ping-intro') {
                 const member = cmd.member as GuildMember | null;
@@ -733,22 +765,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                // Check if user has moderator role
                 if (!member.roles.cache.has(MOD_ROLE_ID!)) {
                     await cmd.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
                     return;
                 }
 
-                const target = (cmd as any).options.getUser('user', true);
-                await cmd.reply({ content: `Starting intro flow for <@${target.id}>... (sending them a DM)`, ephemeral: true });
+                const targets: string[] = [];
+                for (let i = 1; i <= 5; i++) {
+                    const user = cmd.isChatInputCommand() ? cmd.options.getUser(`user${i}`) : null;
+                    if (user) {
+                        targets.push(user.id);
+                    }
+                }
 
-                // Start the introduction flow for the target user
-                await startIntroFlow(cmd.guildId || GUILD_ID!, target.id);
+                if (targets.length === 0) {
+                    targets.push(cmd.user.id);
+                }
+
+                await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
+
+                for (const targetId of targets) {
+                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
+                }
                 return;
             }
 
             if (cmd.commandName === 'clear-dm') {
-                // Defer the reply as this operation might take some time
                 await cmd.deferReply({ ephemeral: true });
 
                 const result = await clearDMMessages(cmd.user.id);
@@ -773,33 +815,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
 
                 const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
-                
+
                 // Record the time when we received the interaction
                 const interactionTime = Date.now();
-                
+
                 // Defer reply to measure latency
                 await cmd.deferReply({ ephemeral });
-                
+
                 // Calculate message round-trip latency from interaction creation time
                 const messageLatency = Date.now() - cmd.createdTimestamp;
-                
+
                 // Get API latency (WebSocket heartbeat ping). Can be -1 before heartbeat is established.
                 const apiLatency = client.ws.ping < 0 ? -1 : Math.round(client.ws.ping);
-                
+
                 // Calculate uptime
                 const uptime = Date.now() - botStartTime;
                 const uptimeSeconds = Math.floor(uptime / 1000);
                 const uptimeMinutes = Math.floor(uptimeSeconds / 60);
                 const uptimeHours = Math.floor(uptimeMinutes / 60);
                 const uptimeDays = Math.floor(uptimeHours / 24);
-                
+
                 // Format uptime string
                 let uptimeString = '';
                 if (uptimeDays > 0) uptimeString += `${uptimeDays}d `;
                 if (uptimeHours % 24 > 0) uptimeString += `${uptimeHours % 24}h `;
                 if (uptimeMinutes % 60 > 0) uptimeString += `${uptimeMinutes % 60}m `;
                 uptimeString += `${uptimeSeconds % 60}s`;
-                
+
                 // Determine latency status with emojis
                 const getLatencyStatus = (latency: number) => {
                     if (latency < 100) return '🟢 Excellent';
@@ -807,7 +849,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (latency < 300) return '🟠 Fair';
                     return '🔴 Poor';
                 };
-                
+
                 // Additional derived metrics and values
                 const totalResponseTime = Date.now() - interactionTime;
                 const mem = process.memoryUsage();
@@ -884,6 +926,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.editReply({ embeds: [pingEmbed] });
                 return;
             }
+
+            if (cmd.commandName === 'auto-thread') {
+                // Defer handled inside handler as needed
+                // Cast to appropriate type and forward to the modular handler
+                await handleAutoThreadCommand(cmd as any);
+                return;
+            }
         }
     } catch (err) {
         console.error('Error handling interaction:', err);
@@ -897,6 +946,17 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
         await autoPingIntroForNewUser(member);
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
+    }
+});
+
+// Auto-thread only: create threads for normal messages per config
+client.on(Events.MessageCreate, async (message) => {
+    try {
+        if (!message.guild) return;
+        if (message.channel.isThread()) return;
+        await createThreadForMessage(message);
+    } catch (e) {
+        console.error('MessageCreate error:', e);
     }
 });
 
