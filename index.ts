@@ -159,8 +159,6 @@ function buildChannelUrl(guildId: string, channelId: string | undefined): string
 function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
     const introLink = buildChannelUrl(guildId, INTRO_CHANNEL_ID);
     const workingLink = buildChannelUrl(guildId, WORKING_ON_CHANNEL_ID);
-    const getHelpId = process.env.GET_HELP_CHANNEL_ID;
-    const getHelpLink = getHelpId ? buildChannelUrl(guildId, getHelpId) : undefined;
 
     const description = [
         `Hey <@${userId}> 👋`,
