@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  auto-thread-bot:
+  dodo-intro-bot:
     build: .
-    container_name: dodo-auto-thread-bot
+    container_name: dodo-intro-bot
     restart: unless-stopped
     env_file:
       - .env

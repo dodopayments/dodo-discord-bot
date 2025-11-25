@@ -28,13 +28,18 @@
 
 
 import os from 'node:os';
-import { autoThreadCommand, handleAutoThreadCommand } from './src/commands/auto-thread.js';
-import { createThreadForMessage } from './src/services/threadService.js';
+
+
+// New imports for enhanced features
+
+
+import { reminderService } from './src/services/reminderService.js';
+import { DURATION } from './src/utils/constants.js';
+
 import {
     Client,
     GatewayIntentBits,
     Partials,
-    ChannelType,
     TextChannel,
     REST,
     Routes,
@@ -46,11 +51,9 @@ import {
     TextInputStyle,
     ModalSubmitInteraction,
     ButtonInteraction,
-    CommandInteraction,
     GuildMember,
     Events,
     ModalActionRowComponentBuilder,
-    User,
     DMChannel,
     EmbedBuilder,
 } from 'discord.js';
@@ -160,21 +163,22 @@ function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
     const getHelpLink = getHelpId ? buildChannelUrl(guildId, getHelpId) : undefined;
 
     const description = [
-        `Hey <@${userId}>`,
+        `Hey <@${userId}> 👋`,
         '',
-        'Welcome to **Dodo Payments** — home for builders shipping great products.',
+        "Welcome to **Dodo Payments**! We're a community of builders shipping great products, and we're stoked to have you here.",
         '',
-        '__Kick things off (≈60s):__',
-        `> - Fill Introduction — who you are + what you're working on.`,
-        `> - Fill What You're Working On — share your current project; we'll open a public thread so others can follow and help.`,
+        '**🚀 Get Started in 60 Seconds**',
         '',
-        '__Perk:__ Complete both to earn the Dodo Builder role.',
+        "We'd love to know who you are and what you're building. Use the buttons below to:",
         '',
-        '__Notes__',
-        '> - Your answers will be posted publicly — please avoid any sensitive info.',
-        `> - Jump in anytime via [#introductions](${introLink}), [#working-on](${workingLink})${getHelpLink ? `, [#get-help](${getHelpLink})` : ''}.`,
+        '1.  **Introduce Yourself** – Tell us a bit about you.',
+        "2.  **Share Your Project** – Show us what you're working on! We'll create a dedicated thread for your project so others can follow along and support you.",
         '',
-        "Let's build great things together!"
+        '🏆 **Pro Tip:** Complete both steps to instantly earn the **Dodo Builder** role and stand out in the community!',
+        '',
+        `*Note: Your answers will be posted publicly in [#introductions](${introLink}) and [#working-on](${workingLink}).*`,
+        '',
+        "Let's build something amazing together! 🚀"
     ].join('\n');
 
     return new EmbedBuilder()
@@ -195,8 +199,23 @@ const client = new Client({
     partials: [Partials.Channel, Partials.Message],
 });
 
-// Track user completions: Map<userId, Set<'intro' | 'working'>>
-const userCompletions = new Map<string, Set<'intro' | 'working'>>();
+
+
+// Track user completions: Map<userId, { completions: Set<'intro' | 'working'>, timestamp: number }>
+const userCompletions = new Map<string, { completions: Set<'intro' | 'working'>, timestamp: number }>();
+
+// Cleanup interval: Remove entries older than 24 hours
+const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+const TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [userId, data] of userCompletions.entries()) {
+        if (now - data.timestamp > TTL) {
+            userCompletions.delete(userId);
+        }
+    }
+}, CLEANUP_INTERVAL);
 
 // Track bot start time for uptime calculation
 const botStartTime = Date.now();
@@ -260,9 +279,7 @@ async function registerCommands() {
                 }
             ]
         }
-        ,
-        // Auto-thread command (new addition)
-        autoThreadCommand
+
     ];
 
     try {
@@ -278,104 +295,6 @@ async function registerCommands() {
     } catch (err) {
         console.error('Failed to register commands', err);
     }
-}
-
-/**
- * Generates a random introduction message variation
- */
-function generateIntroMessage(name: string, targetUserId: string, about: string): string {
-    const introVariations = [
-        {
-            emoji: '🎉',
-            title: `Welcome to the Dodo family, ${name}!`,
-            section: `About ${name}:`,
-            footer: 'Ready to build something amazing? Let\'s go! 🚀'
-        },
-        {
-            emoji: '👋',
-            title: `Hey there, ${name}!`,
-            section: `Get to know ${name}:`,
-            footer: 'Welcome to our community of builders and creators! 💪'
-        },
-        {
-            emoji: '🌟',
-            title: `A warm welcome to ${name}!`,
-            section: `Meet ${name}:`,
-            footer: 'Excited to see what you\'ll build with us! ✨'
-        },
-        {
-            emoji: '🚀',
-            title: `Welcome aboard, ${name}!`,
-            section: `About ${name}:`,
-            footer: 'Great to have another builder in our community! Let\'s create something awesome together! 🎯'
-        },
-        {
-            emoji: '🎊',
-            title: `Welcome to Dodo Payments, ${name}!`,
-            section: `Here's what ${name} shared:`,
-            footer: 'We\'re thrilled to have you join our journey of building great products! 🌟'
-        }
-    ];
-
-    // Randomly select one variation
-    const randomIndex = Math.floor(Math.random() * introVariations.length);
-    const variation = introVariations[randomIndex];
-
-    return `${variation.emoji} **${variation.title}** (<@${targetUserId}>)
-
-**${variation.section}**
-${about}
-
-*${variation.footer}*`;
-}
-
-/**
- * Generates a random working-on message variation (combines product and about)
- */
-function generateWorkingOnMessage(product: string, targetUserId: string, about: string): string {
-    const workingVariations = [
-        {
-            emoji: '🚀',
-            title: `New project: ${product}`,
-            section: 'About this project:',
-            footer: 'Join the discussion here! 💬'
-        },
-        {
-            emoji: '💡',
-            title: `Building: ${product}`,
-            section: 'Project details:',
-            footer: 'Share your thoughts in the thread! 🎯'
-        },
-        {
-            emoji: '⚡',
-            title: `Work in progress: ${product}`,
-            section: 'What it\'s about:',
-            footer: 'Let\'s discuss this together! 🤝'
-        },
-        {
-            emoji: '🎯',
-            title: `Project spotlight: ${product}`,
-            section: 'Project overview:',
-            footer: 'Join the conversation! 💭'
-        },
-        {
-            emoji: '✨',
-            title: `Fresh build: ${product}`,
-            section: 'Here are the details:',
-            footer: 'Share your feedback here! 🌟'
-        }
-    ];
-
-    // Randomly select one variation
-    const randomIndex = Math.floor(Math.random() * workingVariations.length);
-    const variation = workingVariations[randomIndex];
-
-    return `${variation.emoji} **${variation.title}** (<@${targetUserId}>)
-
-**${variation.section}**
-${about}
-
-*${variation.footer}*`;
 }
 
 /**
@@ -487,8 +406,16 @@ async function clearDMMessages(userId: string): Promise<{ success: boolean; mess
  */
 async function autoPingIntroForNewUser(member: GuildMember) {
     try {
-        console.log(`Auto-triggering ping-intro for new user: ${member.user.tag}`);
-        await startIntroFlow(member.guild.id, member.id);
+        console.log(`Auto-triggering ping-intro for new user: ${member.user.tag} (delayed by ${DURATION.WELCOME_DELAY_MS}ms)`);
+
+        setTimeout(async () => {
+            try {
+                await startIntroFlow(member.guild.id, member.id);
+            } catch (innerError) {
+                console.error('Failed to execute delayed intro flow:', innerError);
+            }
+        }, DURATION.WELCOME_DELAY_MS);
+
     } catch (e) {
         console.error('Failed to auto-ping intro for new member:', e);
     }
@@ -497,10 +424,15 @@ async function autoPingIntroForNewUser(member: GuildMember) {
 /**
  * Starts the introduction flow by sending dismissible DM messages to the user
  */
-async function startIntroFlow(guildId: string, targetUserId: string) {
+async function startIntroFlow(guildId: string, targetUserId: string, shouldScheduleReminder: boolean = true) {
     try {
         // Fetch the user to send them a DM
         const user = await client.users.fetch(targetUserId);
+
+        // Track that intro flow started
+        if (shouldScheduleReminder) {
+            await reminderService.scheduleReminder(guildId, targetUserId);
+        }
 
         // Create buttons for both introduction and working-on forms
         const introButton = new ButtonBuilder()
@@ -528,10 +460,11 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
  * Checks if a user has completed both forms and awards the Dodo Builder role if they have
  */
 async function checkAndAwardBadge(userId: string, guildId: string) {
-    const completions = userCompletions.get(userId);
-
     // Check if user has completed both intro and working forms
-    if (completions && completions.has('intro') && completions.has('working')) {
+    const userData = userCompletions.get(userId);
+    const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
+
+    if (completed) {
         try {
             const guild = await client.guilds.fetch(guildId);
             const member = await guild.members.fetch(userId);
@@ -544,6 +477,8 @@ async function checkAndAwardBadge(userId: string, guildId: string) {
 
             // Award the Dodo Builder role
             await member.roles.add(DODO_BUILDER_ROLE_ID!, 'Completed both intro and working-on forms');
+
+
 
             // Send congratulations DM
             try {
@@ -587,9 +522,13 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
 
     // Track completion in memory
     if (!userCompletions.has(targetUserId)) {
-        userCompletions.set(targetUserId, new Set());
+        userCompletions.set(targetUserId, { completions: new Set(), timestamp: Date.now() });
     }
-    userCompletions.get(targetUserId)!.add(flowType);
+    const userData = userCompletions.get(targetUserId)!;
+    userData.completions.add(flowType);
+    userData.timestamp = Date.now(); // Refresh timestamp on activity
+
+
 
     try {
         if (flowType === 'intro') {
@@ -606,12 +545,16 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             const introEmbed = buildIntroEmbed(name, targetUserId, about);
             await destChannel.send({ embeds: [introEmbed] });
 
-            const completions = userCompletions.get(targetUserId);
-            const hasWorking = completions?.has('working');
+            // Track analytics and award points
+            await reminderService.cancelReminder(guildId, targetUserId);
+
+            // Check completion status from memory
+            const userData = userCompletions.get(targetUserId);
+            const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
 
             // Send dismissible success message with progress info
             await interaction.editReply({
-                content: hasWorking
+                content: completed
                     ? 'Thanks — your introduction has been posted publicly in the server! ✅ You have completed both forms and will receive the Dodo Builder role shortly!'
                     : 'Thanks — your introduction has been posted publicly in the server! One more form to go to get your Dodo Builder role!'
             });
@@ -648,12 +591,16 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             console.warn('Could not add user to public thread (may be fine):', err);
         }
 
-        const completions = userCompletions.get(targetUserId);
-        const hasIntro = completions?.has('intro');
+        // Track analytics and award points
+        await reminderService.cancelReminder(guildId, targetUserId);
+
+        // Check completion status from memory
+        const userData = userCompletions.get(targetUserId);
+        const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
 
         // Send dismissible success message with progress info
         await interaction.editReply({
-            content: hasIntro
+            content: completed
                 ? 'Thanks — your working-on message has been posted in a public thread! ✅ You have completed both forms and will receive the Dodo Builder role shortly!'
                 : 'Thanks — your working-on message has been posted in a public thread! One more form to go to get your Dodo Builder role!'
         });
@@ -669,6 +616,11 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
 // Event handler for when the bot is ready
 client.once(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user?.tag}`);
+
+    // Initialize services
+    // await databaseService.connect(); // Removed for in-memory only
+    reminderService.initialize(client);
+
     await registerCommands();
 });
 
@@ -785,7 +737,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
 
                 for (const targetId of targets) {
-                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
+                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId, false);
                 }
                 return;
             }
@@ -814,7 +766,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                const ephemeral = (cmd as any).options.getBoolean('ephemeral') || false;
+                const ephemeral = cmd.isChatInputCommand() ? cmd.options.getBoolean('ephemeral') || false : false;
 
                 // Record the time when we received the interaction
                 const interactionTime = Date.now();
@@ -927,15 +879,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
-            if (cmd.commandName === 'auto-thread') {
-                // Defer handled inside handler as needed
-                // Cast to appropriate type and forward to the modular handler
-                await handleAutoThreadCommand(cmd as any);
-                return;
-            }
+
         }
     } catch (err) {
-        console.error('Error handling interaction:', err);
+        console.error('Error in interaction handler:', err);
     }
 });
 
@@ -949,16 +896,7 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     }
 });
 
-// Auto-thread only: create threads for normal messages per config
-client.on(Events.MessageCreate, async (message) => {
-    try {
-        if (!message.guild) return;
-        if (message.channel.isThread()) return;
-        await createThreadForMessage(message);
-    } catch (e) {
-        console.error('MessageCreate error:', e);
-    }
-});
+
 
 // Login to Discord with bot token
 client.login(DISCORD_TOKEN).catch(err => {
