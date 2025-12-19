@@ -34,6 +34,7 @@ import os from 'node:os';
 
 
 import { reminderService } from './src/services/reminderService.js';
+import { supportBotService } from './src/services/supportBotService.js';
 import { DURATION } from './src/utils/constants.js';
 
 import {
@@ -968,6 +969,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (err) {
         console.error('Error in interaction handler:', err);
     }
+});
+
+// Event handler for new messages (N8N Gateway)
+client.on(Events.MessageCreate, async (message) => {
+    await supportBotService.handleMessage(message);
 });
 
 // Event handler for when a new member joins the server
