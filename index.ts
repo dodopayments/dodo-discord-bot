@@ -67,13 +67,14 @@ const {
     GUILD_ID,
     INTRO_CHANNEL_ID,
     WORKING_ON_CHANNEL_ID,
+    SHOWCASE_CHANNEL_ID,
     MOD_ROLE_ID,
     DODO_BUILDER_ROLE_ID,
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
     process.exit(1);
 }
 
@@ -151,14 +152,37 @@ function buildWorkingOnEmbed(product: string, targetUserId: string, about: strin
         .setFooter({ text: v.footer });
 }
 
-function buildChannelUrl(guildId: string, channelId: string | undefined): string {
-    return `https://discord.com/channels/${guildId}/${channelId}`;
+// Server post: Showcase embed
+function buildShowcaseEmbed(product: string, targetUserId: string, about: string): EmbedBuilder {
+    const showcaseVariations = [
+        { title: `Showcase: ${product}`, section: 'What I built:', footer: 'Check it out!' },
+        { title: `Deployed: ${product}`, section: 'Project details:', footer: 'Share your feedback!' },
+        { title: `Live Project: ${product}`, section: "What it does:", footer: "Let's discuss!" },
+        { title: `Showcasing: ${product}`, section: 'About the project:', footer: 'Amazing work!' },
+        { title: `Launched: ${product}`, section: 'Here is what it is:', footer: 'Congrats on the launch!' },
+    ];
+
+    const randomIndex = Math.floor(Math.random() * showcaseVariations.length);
+    const v = showcaseVariations[randomIndex];
+
+    const description = [
+        `${v.title} <@${targetUserId}>`,
+        '',
+        `__${v.section}__`,
+        `> ${about}`,
+    ].join('\n');
+
+    return new EmbedBuilder()
+        .setColor(0x805ad5) // Purple for showcase
+        .setTitle('Project Showcase')
+        .setDescription(description)
+        .setFooter({ text: v.footer });
 }
 
-// Welcome message embed builder for DMs (use full URLs so links work in DMs)
-function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
-    const introLink = buildChannelUrl(guildId, INTRO_CHANNEL_ID);
-    const workingLink = buildChannelUrl(guildId, WORKING_ON_CHANNEL_ID);
+
+
+// Welcome message embed builder for DMs
+function buildWelcomeEmbed(userId: string): EmbedBuilder {
 
     const description = [
         `Hey <@${userId}> 👋`,
@@ -170,11 +194,11 @@ function buildWelcomeEmbed(userId: string, guildId: string): EmbedBuilder {
         "We'd love to know who you are and what you're building. Use the buttons below to:",
         '',
         '1.  **Introduce Yourself** - Tell us a bit about you.',
-        "2.  **Share Your Project** - Show us what you're working on! We'll create a dedicated thread for your project so others can follow along and support you.",
+        "2.  **Share Your Project** - Show us what you're working on OR showcase a finished project! We'll create a dedicated thread for your project so others can follow along and support you.",
         '',
-        '🏆 **Pro Tip:** Complete both steps to instantly earn the **Dodo Builder** role and stand out in the community!',
+        '🏆 **Pro Tip:** Complete the introduction and ONE of the project forms (Working On or Showcase) to instantly earn the **Dodo Builder** role!',
         '',
-        `*Note: Your answers will be posted publicly in [#introductions](${introLink}) and [#working-on](${workingLink}).*`,
+        `*Note: Your answers will be posted publicly in #introductions, #working-on, or the showcase channel.*`,
         '',
         "Let's build something amazing together! 🚀"
     ].join('\n');
@@ -199,8 +223,8 @@ const client = new Client({
 
 
 
-// Track user completions: Map<userId, { completions: Set<'intro' | 'working'>, timestamp: number }>
-const userCompletions = new Map<string, { completions: Set<'intro' | 'working'>, timestamp: number }>();
+// Track user completions: Map<userId, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>
+const userCompletions = new Map<string, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>();
 
 // Cleanup interval: Remove entries older than 24 hours
 const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -440,13 +464,18 @@ async function startIntroFlow(guildId: string, targetUserId: string, shouldSched
 
         const workingButton = new ButtonBuilder()
             .setCustomId(`open_modal|working|${targetUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
-            .setLabel("Fill What I'm Working On")
+            .setLabel("What You're Working On")
             .setStyle(ButtonStyle.Primary);
 
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton);
+        const showcaseButton = new ButtonBuilder()
+            .setCustomId(`open_modal|showcase|${targetUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
+            .setLabel("Showcase Project")
+            .setStyle(ButtonStyle.Success);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton, showcaseButton);
 
         // Send welcome embed with interactive buttons in a single DM
-        const welcomeEmbed = buildWelcomeEmbed(targetUserId, guildId);
+        const welcomeEmbed = buildWelcomeEmbed(targetUserId);
         await user.send({ embeds: [welcomeEmbed], components: [row] });
 
     } catch (e) {
@@ -458,9 +487,11 @@ async function startIntroFlow(guildId: string, targetUserId: string, shouldSched
  * Checks if a user has completed both forms and awards the Dodo Builder role if they have
  */
 async function checkAndAwardBadge(userId: string, guildId: string) {
-    // Check if user has completed both intro and working forms
+    // Check if user has completed intro AND (working OR showcase)
     const userData = userCompletions.get(userId);
-    const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
+    const hasIntro = userData && userData.completions.has('intro');
+    const hasProject = userData && (userData.completions.has('working') || userData.completions.has('showcase'));
+    const completed = hasIntro && hasProject;
 
     if (completed) {
         try {
@@ -474,7 +505,7 @@ async function checkAndAwardBadge(userId: string, guildId: string) {
             }
 
             // Award the Dodo Builder role
-            await member.roles.add(DODO_BUILDER_ROLE_ID!, 'Completed both intro and working-on forms');
+            await member.roles.add(DODO_BUILDER_ROLE_ID!, 'Completed intro and project form');
 
 
 
@@ -482,7 +513,7 @@ async function checkAndAwardBadge(userId: string, guildId: string) {
             try {
                 const user = await client.users.fetch(userId);
                 await user.send({
-                    content: `🎉 **Congratulations!** You've been awarded the **Dodo Builder** badge for completing your introduction and sharing what you're working on! Keep building! 🚀`
+                    content: `🎉 **Congratulations!** You've been awarded the **Dodo Builder** badge for completing your introduction and sharing your project! Keep building! 🚀`
                 });
             } catch (dmError) {
                 console.warn(`Could not send congratulations DM to user ${userId}:`, dmError);
@@ -504,7 +535,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
 
     const parts = customId.split('|');
     if (parts.length < 5) return;
-    const flowType = parts[1] as 'intro' | 'working';
+    const flowType = parts[1] as 'intro' | 'working' | 'showcase';
     const targetUserId = parts[2];
     const guildId = parts[3];
     const channelId = parts[4];
@@ -548,16 +579,59 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
 
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
-            const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
+            const hasProject = userData && (userData.completions.has('working') || userData.completions.has('showcase'));
+            const completed = userData && userData.completions.has('intro') && hasProject;
 
             // Send dismissible success message with progress info
             await interaction.editReply({
                 content: completed
-                    ? 'Thanks — your introduction has been posted publicly in the server! ✅ You have completed both forms and will receive the Dodo Builder role shortly!'
-                    : 'Thanks — your introduction has been posted publicly in the server! One more form to go to get your Dodo Builder role!'
+                    ? 'Thanks — your introduction has been posted publicly in the server! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
+                    : 'Thanks — your introduction has been posted publicly in the server! One more step (share project) to go to get your Dodo Builder role!'
             });
 
             // Check if they should get the badge
+            await checkAndAwardBadge(targetUserId, guildId);
+            return;
+        }
+
+        if (flowType === 'showcase') {
+            const product = interaction.fields.getTextInputValue('product_name');
+            const about = interaction.fields.getTextInputValue('product_about');
+
+            const showcaseChannel = await client.channels.fetch(channelId) as TextChannel | null;
+            if (!showcaseChannel) {
+                await interaction.editReply({ content: 'Could not find the showcase channel to post your message. Contact a mod.' });
+                return;
+            }
+
+            // Send showcase embed
+            const showcaseEmbed = buildShowcaseEmbed(product, targetUserId, about);
+            const parentMsg = await showcaseChannel.send({ embeds: [showcaseEmbed] });
+
+            // Create a PUBLIC thread
+            const publicThread = await parentMsg.startThread({
+                name: product.slice(0, 100),
+                autoArchiveDuration: 1440, // 24 hours
+            });
+
+            try {
+                await publicThread.members.add(targetUserId);
+            } catch (err) {
+                console.warn('Could not add user to public thread (may be fine):', err);
+            }
+
+            await reminderService.cancelReminder(guildId, targetUserId);
+
+            const userData = userCompletions.get(targetUserId);
+            const hasIntro = userData && userData.completions.has('intro');
+            const completed = hasIntro && userData.completions.has('showcase'); // We just added showcase
+
+            await interaction.editReply({
+                content: completed
+                    ? 'Thanks — your showcase has been posted in a public thread! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
+                    : 'Thanks — your showcase has been posted in a public thread! One more step (intro) to go to get your Dodo Builder role!'
+            });
+
             await checkAndAwardBadge(targetUserId, guildId);
             return;
         }
@@ -594,13 +668,14 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
 
         // Check completion status from memory
         const userData = userCompletions.get(targetUserId);
-        const completed = userData && userData.completions.has('intro') && userData.completions.has('working');
+        const hasIntro = userData && userData.completions.has('intro');
+        const completed = hasIntro && userData.completions.has('working'); // We just added working
 
         // Send dismissible success message with progress info
         await interaction.editReply({
             content: completed
-                ? 'Thanks — your working-on message has been posted in a public thread! ✅ You have completed both forms and will receive the Dodo Builder role shortly!'
-                : 'Thanks — your working-on message has been posted in a public thread! One more form to go to get your Dodo Builder role!'
+                ? 'Thanks — your working-on message has been posted in a public thread! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
+                : 'Thanks — your working-on message has been posted in a public thread! One more step (intro) to go to get your Dodo Builder role!'
         });
 
         // Check if they should get the badge
@@ -630,7 +705,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const bi = interaction as ButtonInteraction;
             const parts = bi.customId.split('|');
             if (parts[0] === 'open_modal') {
-                const flow = parts[1] as 'intro' | 'working';
+                const flow = parts[1] as 'intro' | 'working' | 'showcase';
                 const targetUserId = parts[2];
                 const guildId = parts[3];
                 const channelId = parts[4];
@@ -642,8 +717,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
 
                 const modal = new ModalBuilder()
-                    .setCustomId(`submit_modal|${flow}|${targetUserId}|${guildId}|${channelId}`)
-                    .setTitle(flow === 'intro' ? 'Introduce yourself' : "What you're working on");
+                    .setCustomId(`submit_modal|${flow}|${targetUserId}|${guildId}|${channelId}`);
+
+                if (flow === 'intro') {
+                    modal.setTitle('Introduce yourself');
+                } else if (flow === 'working') {
+                    modal.setTitle("What you're working on");
+                } else {
+                    modal.setTitle('Showcase your project');
+                }
 
                 if (flow === 'intro') {
                     // Create introduction form inputs
@@ -670,7 +752,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     return;
                 }
 
-                // flow === 'working' - Create working-on form inputs
+                // flow === 'working' || flow === 'showcase' - Create project form inputs
+                // Reusing same inputs for both working-on and showcase, just maybe different labels if we wanted
+                // For now, keep them same or slightly adjusted
+                const isShowcase = flow === 'showcase';
+
                 const productNameInput = new TextInputBuilder()
                     .setCustomId('product_name')
                     .setLabel("Product's name")
@@ -681,10 +767,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 const productAboutInput = new TextInputBuilder()
                     .setCustomId('product_about')
-                    .setLabel('What is it about')
+                    .setLabel(isShowcase ? 'What did you build?' : 'What is it about?')
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true)
-                    .setPlaceholder('Describe the product in a few lines...')
+                    .setPlaceholder(isShowcase ? 'Describe your finished product...' : 'Describe the product in a few lines...')
                     .setMaxLength(2000);
 
                 const prow1 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(productNameInput);
