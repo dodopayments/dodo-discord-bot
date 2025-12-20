@@ -6,7 +6,8 @@ dotenv.config();
 // Configuration
 const CONFIG = {
     N8N_WEBHOOK_URL: process.env.N8N_PRODUCTION_URL,
-    VALID_CHANNELS: ["1381966518568616006", "1314494170085326870", "1333450965851832432"],
+    // VALID_CHANNELS: ["1451873829675864176", "1420788292852388022"],
+    VALID_CHANNELS: ["1314494170085326870", "1333450965851832432"],
     MAX_MESSAGE_LENGTH: 1900,
     MAX_THREAD_NAME_LENGTH: 100,
     MIN_QUERY_LENGTH: 3,
@@ -120,16 +121,14 @@ class SupportBotService {
         // The snippet comment says: "If message has a thread, must invoke support command".
 
         if (message.channel.isThread() && !isBotMentioned) {
-            // We can try to approximate "not the first message" if we really need to, but for now let's just use isThread logic
-            // But wait, the snippet: `if ((message.position !== null && message.position !== 0) && !isBotMentioned)`
-            // If `message.position` is gone, I need an alternative.
-            // If I look at the `handleMessage` logic later in snippet:
-            // `if (message.position !== null) { const thread = message.channel; ... }`
-            // It seems they use `message.position !== null` to detect if it's in a thread?
-            // `message.channel.isThread()` is the correct way.
+            // Allow processing if it's the starter message of the thread (e.g. Forum Post)
+            // In Discord, the starter message of a thread often shares the ID with the thread itself (especially in Forums)
+            const isStarterMessage = message.id === message.channel.id;
 
-            console.log('Message inside thread without bot mention, skipping...');
-            return false;
+            if (!isStarterMessage) {
+                console.log('Message inside thread without bot mention, skipping...');
+                return false;
+            }
         }
 
         return true;
