@@ -6,8 +6,10 @@ dotenv.config();
 // Configuration
 const CONFIG = {
     N8N_WEBHOOK_URL: process.env.N8N_PRODUCTION_URL,
+    // Test
     // VALID_CHANNELS: ["1451873829675864176", "1420788292852388022"],
-    VALID_CHANNELS: ["1314494170085326870", "1333450965851832432"],
+    // Live
+    VALID_CHANNELS: ["1333450965851832432", "1314494170085326870"],
     MAX_MESSAGE_LENGTH: 1900,
     MAX_THREAD_NAME_LENGTH: 100,
     MIN_QUERY_LENGTH: 3,
@@ -57,11 +59,15 @@ class SupportBotService {
         return chunks;
     }
 
-    private async sendMessageWithChunking(channel: TextChannel | ThreadChannel, message: string, isWeekend: boolean = false, weekendMessage: string = '') {
+    private async sendMessageWithChunking(channel: TextChannel | ThreadChannel, message: string, isWeekend: boolean = false, weekendMessage: string = '', replyTo?: Message) {
         const chunks = this.splitMessageIntoChunks(message);
 
         for (let i = 0; i < chunks.length; i++) {
-            await channel.send(chunks[i]);
+            if (i === 0 && replyTo) {
+                await replyTo.reply(chunks[i]);
+            } else {
+                await channel.send(chunks[i]);
+            }
 
             if (i < chunks.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -255,7 +261,7 @@ class SupportBotService {
 
             if (channel.isThread()) {
                 // Reply in existing thread
-                await this.sendMessageWithChunking(channel as ThreadChannel, reply, isWeekend, weekendMessage);
+                await this.sendMessageWithChunking(channel as ThreadChannel, reply, isWeekend, weekendMessage, message);
             } else {
                 // Create new thread
                 // Only TextChannel/NewsChannel has startThread usually (message.startThread helper exists in recent versions)
@@ -275,7 +281,7 @@ class SupportBotService {
                     const fallbackMessage = 'Hey, thanks for reaching out. One of our team members will respond shortly.';
                     await threadChannel.send(fallbackMessage);
                 } else {
-                    await message.channel.send('Hey, thanks for reaching out. One of our team members will respond shortly.');
+                    await message.reply('Hey, thanks for reaching out. One of our team members will respond shortly.');
                 }
             } catch (fallbackError) {
                 console.error('Error sending fallback message:', fallbackError);
