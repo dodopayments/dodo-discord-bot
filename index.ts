@@ -34,6 +34,7 @@ import os from 'node:os';
 
 
 import { reminderService } from './src/services/reminderService.js';
+import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { DURATION } from './src/utils/constants.js';
 
@@ -973,6 +974,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // Event handler for new messages (N8N Gateway)
 client.on(Events.MessageCreate, async (message) => {
+    // Check for spam first
+    if (await moderationService.handleMessage(message)) {
+        return;
+    }
     await supportBotService.handleMessage(message);
 });
 
