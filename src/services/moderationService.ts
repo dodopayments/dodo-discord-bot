@@ -3,7 +3,8 @@ import { Message, TextChannel } from 'discord.js';
 const CONFIG = {
     BANNED_SENTENCES: [
         "i'll help...first...start earning...profits...in my bio",
-        "hyperliquid new portfolio tracking tool..."
+        "hyperliquid new portfolio tracking tool...",
+        "...XRP Mystery Box Free Airdrop...A new XRP community...Claim your"
     ]
 };
 
