@@ -5,7 +5,8 @@ const CONFIG = {
         "i'll help...first...start earning...profits...in my bio",
         "hyperliquid new portfolio tracking tool...",
         "...XRP Mystery Box Free Airdrop...A new XRP community...Claim your",
-        "O𝐏ΕΝ...𝐇ΕRΕ"
+        "O𝐏ΕΝ...𝐇ΕRΕ",
+        "ask...here...👇"
     ]
 };
 
