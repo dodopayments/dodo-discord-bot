@@ -7,7 +7,9 @@ const CONFIG = {
         "...XRP Mystery Box Free Airdrop...A new XRP community...Claim your",
         "O𝐏ΕΝ...𝐇ΕRΕ",
         "ask...here...👇",
-        "communicate...admin...👇...ht"
+        "communicate...admin...👇...ht",
+        "Direct...issue...team...channel👇",
+        "Direct...issue...team...channel...👇"
     ]
 };
 
