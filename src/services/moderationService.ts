@@ -9,7 +9,9 @@ const CONFIG = {
         "ask...here...👇",
         "communicate...admin...👇...ht",
         "Direct...issue...team...channel👇",
-        "Direct...issue...team...channel...👇"
+        "Direct...issue...team...channel...👇",
+        "...scammer...",
+        "...scammed..."
     ]
 };
 
