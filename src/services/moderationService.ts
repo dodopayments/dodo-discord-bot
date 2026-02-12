@@ -10,8 +10,7 @@ const CONFIG = {
         "communicate...admin...👇...ht",
         "Direct...issue...team...channel👇",
         "Direct...issue...team...channel...👇",
-        "...scammer...",
-        "...scammed..."
+        "...CREATE A TICKET...<@",
     ]
 };
 
