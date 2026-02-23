@@ -11,7 +11,8 @@ const CONFIG = {
         "Direct...issue...team...channel👇",
         "Direct...issue...team...channel...👇",
         "...CREATE A TICKET...<@",
-        "we...excited...announce...free...mint...opensea"
+        "we...excited...announce...free...mint...opensea",
+        "I...need...waIIet...transactions...dead...tokens"
     ]
 };
 
