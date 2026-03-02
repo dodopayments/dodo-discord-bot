@@ -143,7 +143,7 @@ class MoveQuestionService {
 
             // Notify original author in source channel
             if (interaction.channel?.isTextBased() && 'send' in interaction.channel) {
-                await (interaction.channel as TextChannel).send(`Hey <@${referencedMessage.author.id}>!\n\nWe’ve moved your message to the <#${GET_HELP_CHANNEL}> channel so it’s easier for everyone to assist. You can continue the conversation here: ${postUrl}`);
+                await (interaction.channel as TextChannel).send(`Hey <@${referencedMessage.author.id}>,\n\nWe've moved your message to the <#${GET_HELP_CHANNEL}> channel so it's easier for us to help with your issue. You can continue the conversation here: ${postUrl}`);
             }
 
             // Delete original message
