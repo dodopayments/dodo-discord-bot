@@ -36,6 +36,7 @@ import os from 'node:os';
 import { reminderService } from './src/services/reminderService.js';
 import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
+import { moveQuestionService } from './src/services/moveQuestionService.js';
 import { DURATION } from './src/utils/constants.js';
 
 import {
@@ -299,6 +300,18 @@ async function registerCommands() {
                     name: 'ephemeral',
                     description: 'Make the response only visible to you',
                     type: 5, // BOOLEAN type
+                    required: false,
+                }
+            ]
+        },
+        {
+            name: 'move-message',
+            description: 'Move a message to the help channel (mods only).',
+            options: [
+                {
+                    name: 'message_id',
+                    description: 'ID of the message to move (leave blank to move the last message)',
+                    type: 3, // STRING type
                     required: false,
                 }
             ]
@@ -966,6 +979,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
 
+            if (cmd.commandName === 'move-message') {
+                if (!cmd.isChatInputCommand()) return;
+                await moveQuestionService.handleMoveInteraction(cmd);
+                return;
+            }
+
         }
     } catch (err) {
         console.error('Error in interaction handler:', err);
@@ -978,6 +997,13 @@ client.on(Events.MessageCreate, async (message) => {
     if (await moderationService.handleMessage(message)) {
         return;
     }
+
+    // Handle /move-message command
+    if (message.content.trim().startsWith('/move-message')) {
+        await moveQuestionService.handleMoveCommand(message);
+        return;
+    }
+
     await supportBotService.handleMessage(message);
 });
 
