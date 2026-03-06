@@ -22,7 +22,7 @@ A TypeScript Discord bot that automates introductions for new members. Users com
 git clone <repository-url>
 cd dodo-discord-bot
 npm install
-cp env.example .env
+cp .env.example .env
 # Edit .env with your Discord credentials
 ```
 

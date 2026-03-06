@@ -98,7 +98,9 @@ class MoveQuestionService {
         if (messageId) {
             try {
                 referencedMessage = await interaction.channel?.messages.fetch(messageId) as Message | undefined;
-            } catch (err) { }
+            } catch (err) {
+                console.warn('Could not fetch message:', err);
+            }
         }
 
         if (!referencedMessage) {
