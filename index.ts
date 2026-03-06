@@ -722,6 +722,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Handle button interactions (form selection buttons)
         if (interaction.isButton()) {
             const bi = interaction as ButtonInteraction;
+
+            if (bi.customId === 'mark_resolved') {
+                const message = bi.message;
+
+                // Disable the button
+                const newComponents = message.components.map((row: any) => {
+                    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+                        row.components.map((component: any) => {
+                            if (component.customId === 'mark_resolved') {
+                                return ButtonBuilder.from(component as any).setDisabled(true);
+                            }
+                            return ButtonBuilder.from(component as any);
+                        })
+                    );
+                });
+
+                await bi.update({ components: newComponents });
+
+                if (bi.channel && 'send' in bi.channel) {
+                    await (bi.channel as TextChannel).send(`This query has been marked as resolved by <@${bi.user.id}>.`);
+                }
+                return;
+            }
+
             const parts = bi.customId.split('|');
             if (parts[0] === 'open_modal') {
                 const flow = parts[1] as 'intro' | 'working' | 'showcase';

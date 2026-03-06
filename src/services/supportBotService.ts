@@ -1,4 +1,4 @@
-import { Message, TextChannel, ThreadChannel } from 'discord.js';
+import { Message, TextChannel, ThreadChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -60,10 +60,26 @@ class SupportBotService {
         const chunks = this.splitMessageIntoChunks(message);
 
         for (let i = 0; i < chunks.length; i++) {
+            const isLastMessage = (i === chunks.length - 1) && (!isWeekend || !weekendMessage);
+            const components = [];
+
+            if (isLastMessage) {
+                const resolveButton = new ButtonBuilder()
+                    .setCustomId('mark_resolved')
+                    .setLabel('My query is resolved')
+                    .setStyle(ButtonStyle.Success);
+                components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(resolveButton));
+            }
+
+            const messageOptions: any = { content: chunks[i] };
+            if (components.length > 0) {
+                messageOptions.components = components;
+            }
+
             if (i === 0 && replyTo) {
-                await replyTo.reply(chunks[i]);
+                await replyTo.reply(messageOptions);
             } else {
-                await channel.send(chunks[i]);
+                await channel.send(messageOptions);
             }
 
             if (i < chunks.length - 1) {
@@ -72,7 +88,13 @@ class SupportBotService {
         }
 
         if (isWeekend && weekendMessage) {
-            await channel.send(weekendMessage);
+            const resolveButton = new ButtonBuilder()
+                .setCustomId('mark_resolved')
+                .setLabel('My query is resolved')
+                .setStyle(ButtonStyle.Success);
+            const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(resolveButton)];
+
+            await channel.send({ content: weekendMessage, components });
         }
     }
 
