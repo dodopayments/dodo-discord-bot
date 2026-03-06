@@ -1,6 +1,6 @@
 import { Message, TextChannel, ForumChannel, ChannelType, ChatInputCommandInteraction, GuildMemberRoleManager, MessageContextMenuCommandInteraction } from 'discord.js';
 import dotenv from 'dotenv';
-import { supportBotService } from './supportBotService';
+import { supportBotService } from './supportBotService.js';
 
 dotenv.config();
 
