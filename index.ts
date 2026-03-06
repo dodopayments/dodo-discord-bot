@@ -315,6 +315,10 @@ async function registerCommands() {
                     required: false,
                 }
             ]
+        },
+        {
+            name: 'Move Message',
+            type: 3, // MESSAGE type (Message Context Menu)
         }
 
     ];
@@ -986,6 +990,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
         }
+
+        // Handle Context Menu commands
+        if (interaction.isMessageContextMenuCommand()) {
+            if (interaction.commandName === 'Move Message') {
+                await moveQuestionService.handleMessageContextMenu(interaction);
+                return;
+            }
+        }
     } catch (err) {
         console.error('Error in interaction handler:', err);
     }
@@ -998,8 +1010,8 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
 
-    // Handle /move-message command
-    if (message.content.trim().startsWith('/move-message')) {
+    // Handle /move-message or !move-message text command
+    if (message.content.trim().startsWith('/move-message') || message.content.trim().startsWith('!move-message')) {
         await moveQuestionService.handleMoveCommand(message);
         return;
     }

@@ -285,6 +285,34 @@ class SupportBotService {
             }
         }
     }
+    public async handleMovedMessage(thread: ThreadChannel, query: string, originalAuthorId: string) {
+        try {
+            console.log("//////PROCESSING MOVED MESSAGE//////");
+            console.log(`Query: ${query}`);
+
+            // Get weekend status
+            const isWeekend = this.isWeekendInIST(Date.now());
+            const weekendMessage = isWeekend
+                ? CONFIG.WEEKEND_MESSAGE_TEMPLATE.replace("{userId}", originalAuthorId)
+                : '';
+
+            // Get response from N8N
+            let reply = await this.getN8NResponse(query);
+            reply = reply.replace(/【[^】]*llms-full\.txt】/g, '');
+
+            // Send response in the thread
+            await this.sendMessageWithChunking(thread, reply, isWeekend, weekendMessage);
+
+        } catch (error) {
+            console.error('Error processing moved message:', error);
+            try {
+                const fallbackMessage = 'Hey, thanks for reaching out. One of our team members will respond shortly.';
+                await thread.send(fallbackMessage);
+            } catch (fallbackError) {
+                console.error('Error sending fallback message for moved message:', fallbackError);
+            }
+        }
+    }
 }
 
 export const supportBotService = new SupportBotService();
