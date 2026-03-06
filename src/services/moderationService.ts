@@ -13,7 +13,8 @@ const CONFIG = {
         "...CREATE A TICKET...<@",
         "we...excited...announce...free...mint...opensea",
         "I...need...waIIet...transactions...dead...tokens",
-        "I’m...spam...anyone...just...I’m...16...making...daily...system...experience reply...interested"
+        "I’m...spam...anyone...just...I’m...16...making...daily...system...experience reply...interested",
+        "𝐈'𝐥𝐥...𝐢𝐧𝐭𝐞𝐫𝐞𝐬𝐭𝐞𝐝...𝐞𝐚𝐫𝐧𝐢𝐧𝐠...𝐫𝐞𝐢𝐦𝐛𝐮𝐫𝐬𝐞...𝐫𝐞𝐜𝐞𝐢𝐯𝐞...𝐩𝐞𝐨𝐩𝐥𝐞...𝐬𝐞𝐧𝐝...𝐓𝐞𝐥𝐞𝐠𝐫𝐚𝐦...𝐥𝐢𝐧𝐤...𝐦𝐲...𝐛𝐢𝐨"
     ]
 };
 
