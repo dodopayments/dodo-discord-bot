@@ -22,7 +22,7 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "types": [
-      "node",
+      "node"
     ]
   },
   "include": [
