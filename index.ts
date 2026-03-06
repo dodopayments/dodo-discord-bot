@@ -315,6 +315,10 @@ async function registerCommands() {
                     required: false,
                 }
             ]
+        },
+        {
+            name: 'Move Message',
+            type: 3, // MESSAGE type (Message Context Menu)
         }
 
     ];
@@ -718,6 +722,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Handle button interactions (form selection buttons)
         if (interaction.isButton()) {
             const bi = interaction as ButtonInteraction;
+
+            if (bi.customId === 'mark_resolved') {
+                const message = bi.message;
+
+                // Disable the button
+                const newComponents = message.components.map((row: any) => {
+                    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+                        row.components.map((component: any) => {
+                            if (component.customId === 'mark_resolved') {
+                                return ButtonBuilder.from(component as any).setDisabled(true);
+                            }
+                            return ButtonBuilder.from(component as any);
+                        })
+                    );
+                });
+
+                await bi.update({ components: newComponents });
+
+                if (bi.channel && 'send' in bi.channel) {
+                    await (bi.channel as TextChannel).send(`This query has been marked as resolved by <@${bi.user.id}>.`);
+                }
+                return;
+            }
+
             const parts = bi.customId.split('|');
             if (parts[0] === 'open_modal') {
                 const flow = parts[1] as 'intro' | 'working' | 'showcase';
@@ -986,6 +1014,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
         }
+
+        // Handle Context Menu commands
+        if (interaction.isMessageContextMenuCommand()) {
+            if (interaction.commandName === 'Move Message') {
+                await moveQuestionService.handleMessageContextMenu(interaction);
+                return;
+            }
+        }
     } catch (err) {
         console.error('Error in interaction handler:', err);
     }
@@ -998,8 +1034,8 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
 
-    // Handle /move-message command
-    if (message.content.trim().startsWith('/move-message')) {
+    // Handle /move-message or !move-message text command
+    if (message.content.trim().startsWith('/move-message') || message.content.trim().startsWith('!move-message')) {
         await moveQuestionService.handleMoveCommand(message);
         return;
     }

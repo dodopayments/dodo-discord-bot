@@ -47,7 +47,9 @@ npm start      # Production
 ## Commands
 
 - `/ping-intro [user]` - Trigger intro flow (mods only)
-- `/clear-dm` - Clear bot DMs (all users)
+- `/clear-dm` - Clear bot DMs (only for the user who runs it)
+- `/move-message [message id]` - Move a message to the #get-help channel (mods only)
+- `!move-message` - Move a message to the #get-help channel (mods only, you will need to reply to the message you want to move)
 
 ## Docker
 
