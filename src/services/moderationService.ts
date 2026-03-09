@@ -67,7 +67,9 @@ class ModerationService {
                     // Fallback delete query message if not text channel
                     try {
                         if (message.deletable) await message.delete();
-                    } catch (e) { }
+                    } catch (e) {
+                        console.warn('Could not delete spam message:', e);
+                    }
                 }
 
                 // 2. Ban the user (If bannable)
