@@ -317,6 +317,18 @@ async function registerCommands() {
             ]
         },
         {
+            name: 'bot-answer',
+            description: 'Directly answer a specific message without creating a thread.',
+            options: [
+                {
+                    name: 'message_id',
+                    description: 'ID of the message to answer',
+                    type: 3, // STRING type
+                    required: true,
+                }
+            ]
+        },
+        {
             name: 'Move Message',
             type: 3, // MESSAGE type (Message Context Menu)
         }
@@ -1013,6 +1025,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
+            if (cmd.commandName === 'bot-answer') {
+                if (!cmd.isChatInputCommand()) return;
+                await supportBotService.handleBotAnswerInteraction(cmd);
+                return;
+            }
+
         }
 
         // Handle Context Menu commands
@@ -1037,6 +1055,12 @@ client.on(Events.MessageCreate, async (message) => {
     // Handle /move-message or !move-message text command
     if (message.content.trim().startsWith('/move-message') || message.content.trim().startsWith('!move-message')) {
         await moveQuestionService.handleMoveCommand(message);
+        return;
+    }
+
+    // Handle /bot-answer or !bot-answer text command
+    if (message.content.trim().startsWith('/bot-answer') || message.content.trim().startsWith('!bot-answer')) {
+        await supportBotService.handleBotAnswerCommand(message);
         return;
     }
 

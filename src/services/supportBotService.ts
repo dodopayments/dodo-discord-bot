@@ -1,4 +1,4 @@
-import { Message, TextChannel, ThreadChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Message, TextChannel, ThreadChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction } from 'discord.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,7 +11,8 @@ const CONFIG = {
     MAX_THREAD_NAME_LENGTH: 100,
     MIN_QUERY_LENGTH: 3,
     IST_OFFSET_HOURS: 5.5,
-    WEEKEND_MESSAGE_TEMPLATE: "Hey <@{userId}>, We have limited availability over weekends, but rest assured we'll get back to you as soon as possible!"
+    WEEKEND_MESSAGE_TEMPLATE: "Hey <@{userId}>, We have limited availability over weekends, but rest assured we'll get back to you as soon as possible!",
+    MOD_ROLE_ID: process.env.MOD_ROLE_ID
 };
 
 
@@ -56,14 +57,14 @@ class SupportBotService {
         return chunks;
     }
 
-    private async sendMessageWithChunking(channel: TextChannel | ThreadChannel, message: string, isWeekend: boolean = false, weekendMessage: string = '', replyTo?: Message) {
+    private async sendMessageWithChunking(channel: TextChannel | ThreadChannel, message: string, isWeekend: boolean = false, weekendMessage: string = '', replyTo?: Message, showResolveButton: boolean = true) {
         const chunks = this.splitMessageIntoChunks(message);
 
         for (let i = 0; i < chunks.length; i++) {
             const isLastMessage = (i === chunks.length - 1) && (!isWeekend || !weekendMessage);
             const components = [];
 
-            if (isLastMessage) {
+            if (isLastMessage && showResolveButton) {
                 const resolveButton = new ButtonBuilder()
                     .setCustomId('mark_resolved')
                     .setLabel('My query is resolved')
@@ -88,13 +89,20 @@ class SupportBotService {
         }
 
         if (isWeekend && weekendMessage) {
-            const resolveButton = new ButtonBuilder()
-                .setCustomId('mark_resolved')
-                .setLabel('My query is resolved')
-                .setStyle(ButtonStyle.Success);
-            const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(resolveButton)];
+            const components = [];
+            if (showResolveButton) {
+                const resolveButton = new ButtonBuilder()
+                    .setCustomId('mark_resolved')
+                    .setLabel('My query is resolved')
+                    .setStyle(ButtonStyle.Success);
+                components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(resolveButton));
+            }
 
-            await channel.send({ content: weekendMessage, components });
+            if (components.length > 0) {
+                await channel.send({ content: weekendMessage, components });
+            } else {
+                await channel.send({ content: weekendMessage });
+            }
         }
     }
 
@@ -333,6 +341,138 @@ class SupportBotService {
             } catch (fallbackError) {
                 console.error('Error sending fallback message for moved message:', fallbackError);
             }
+        }
+    }
+
+    public async handleBotAnswerCommand(message: Message) {
+        try {
+            // Check if user has moderator role
+            if (!message.member || !CONFIG.MOD_ROLE_ID || !message.member.roles.cache.has(CONFIG.MOD_ROLE_ID)) {
+                await message.reply('You need the moderator role to use this command.');
+                return;
+            }
+
+            if (!message.channel.isTextBased() || message.channel.isThread()) {
+                await message.reply('This command can only be used in regular text channels.');
+                return;
+            }
+
+            const args = message.content.trim().split(/\s+/);
+            let messageId = message.reference?.messageId;
+
+            if (!messageId && args.length > 1) {
+                messageId = args[1];
+            }
+
+            if (!messageId) {
+                await message.reply('Please reply to a message or provide a message ID. Usage: Reply with `!bot-answer` OR `!bot-answer [message-id]`');
+                return;
+            }
+
+            const success = await this.processBotAnswer(message.channel as TextChannel, messageId, message);
+
+            // Once successful, optionally clear the trigger message to keep chat clean
+            if (success) {
+                if (message.deletable) {
+                    try { await message.delete(); } catch (e) { console.error('Could not delete command message:', e); }
+                }
+            }
+        } catch (error) {
+            console.error('Error in handleBotAnswerCommand:', error);
+            await message.reply('An error occurred while executing the command.');
+        }
+    }
+
+    public async handleBotAnswerInteraction(interaction: ChatInputCommandInteraction) {
+        try {
+            // Check if user has moderator role
+            const member: any = interaction.member;
+            if (!member || !CONFIG.MOD_ROLE_ID || !member.roles.cache.has(CONFIG.MOD_ROLE_ID)) {
+                await interaction.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
+                return;
+            }
+
+            if (!interaction.channel || !interaction.channel.isTextBased() || interaction.channel.isThread()) {
+                await interaction.reply({ content: 'This command can only be used in regular text channels.', ephemeral: true });
+                return;
+            }
+
+            const messageId = interaction.options.getString('message_id');
+            if (!messageId) {
+                await interaction.reply({ content: 'Message ID is required.', ephemeral: true });
+                return;
+            }
+
+            await interaction.deferReply({ ephemeral: true });
+            const success = await this.processBotAnswer(interaction.channel as TextChannel, messageId);
+
+            if (success) {
+                await interaction.editReply({ content: `Successfully answered message \`${messageId}\`.` });
+            } else {
+                await interaction.editReply({ content: `Failed to answer message \`${messageId}\`. Please ensure the ID is valid and in this channel.` });
+            }
+        } catch (error) {
+            console.error('Error in handleBotAnswerInteraction:', error);
+            if (interaction.deferred) {
+                await interaction.editReply({ content: 'An error occurred while executing the command.' });
+            } else {
+                await interaction.reply({ content: 'An error occurred while executing the command.', ephemeral: true });
+            }
+        }
+    }
+
+    private async processBotAnswer(channel: TextChannel, messageId: string, replyToMessage?: Message): Promise<boolean> {
+        try {
+            const cleanMessageId = messageId.trim();
+            const targetMessage = await channel.messages.fetch(cleanMessageId);
+            if (!targetMessage) {
+                if (replyToMessage) await replyToMessage.reply('Could not find the specified message in this channel.');
+                return false;
+            }
+
+            if (targetMessage.author.bot) {
+                if (replyToMessage) await replyToMessage.reply('I cannot answer messages sent by bots.');
+                return false;
+            }
+
+            const query = targetMessage.content;
+            if (!query) {
+                if (replyToMessage) await replyToMessage.reply('The specified message has no text content.');
+                return false;
+            }
+
+            const isWeekend = this.isWeekendInIST(Date.now());
+            const weekendMessage = isWeekend
+                ? CONFIG.WEEKEND_MESSAGE_TEMPLATE.replace("{userId}", targetMessage.author.id)
+                : '';
+
+            console.log(`//////BOT ANSWER QUERY//////`);
+            console.log(query);
+
+            // Show typing indicator in the channel
+            await channel.sendTyping();
+
+            let reply: string;
+            try {
+                reply = await this.getN8NResponse(query);
+                reply = reply.replace(/【[^】]*llms-full\.txt】/g, '');
+            } catch (n8nError) {
+                console.error('Error fetching N8N response:', n8nError);
+                reply = 'Hey, the team will get back to you soon!';
+            }
+
+            console.log(`//////BOT ANSWER REPLY//////`);
+            console.log(reply);
+
+            // Directly reply to the target message without creating a thread
+            // Pass false for showResolveButton
+            await this.sendMessageWithChunking(channel, reply, isWeekend, weekendMessage, targetMessage, false);
+            return true;
+
+        } catch (error) {
+            console.error('Error in processBotAnswer:', error);
+            if (replyToMessage) await replyToMessage.reply('An unexpected error occurred while processing the command. Ensure the message ID is correct and from this channel.');
+            return false;
         }
     }
 }
