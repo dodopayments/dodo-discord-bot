@@ -50,6 +50,8 @@ npm start      # Production
 - `/clear-dm` - Clear bot DMs (only for the user who runs it)
 - `/move-message [message id]` - Move a message to the #get-help channel (mods only)
 - `!move-message` - Move a message to the #get-help channel (mods only, you will need to reply to the message you want to move)
+- `/bot-answer [message id]` - Answer a question in any text channel (mods only)
+- `!bot-answer` - Answer a question in any text channel (mods only, you will need to reply to the message you want to answer)
 
 ## Docker
 
