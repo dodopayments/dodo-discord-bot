@@ -73,11 +73,12 @@ const {
     SHOWCASE_CHANNEL_ID,
     MOD_ROLE_ID,
     DODO_BUILDER_ROLE_ID,
+    DELETED_MESSAGES_CHANNEL,
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID || !DELETED_MESSAGES_CHANNEL) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID, DELETED_MESSAGES_CHANNEL');
     process.exit(1);
 }
 
@@ -1047,10 +1048,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // Event handler for new messages (N8N Gateway)
 client.on(Events.MessageCreate, async (message) => {
-    // Check for spam first
-    if (await moderationService.handleMessage(message)) {
-        return;
-    }
+    // 1. Run through moderation service first
+    const isSpam = await moderationService.handleMessage(message);
+    if (isSpam) return;
 
     // Handle /move-message or !move-message text command
     if (message.content.trim().startsWith('/move-message') || message.content.trim().startsWith('!move-message')) {
@@ -1064,6 +1064,7 @@ client.on(Events.MessageCreate, async (message) => {
         return;
     }
 
+    // 2. Process for support bot
     await supportBotService.handleMessage(message);
 });
 
@@ -1075,6 +1076,11 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
     }
+});
+
+// Listener for deleted messages to log them
+client.on(Events.MessageDelete, async (message) => {
+    await moderationService.handleDelete(message);
 });
 
 

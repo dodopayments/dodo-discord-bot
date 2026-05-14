@@ -105,6 +105,47 @@ class ModerationService {
         return false;
     }
 
+    public async handleDelete(message: any) {
+        try {
+            // Partial messages might not have content or author
+            if (message.partial) {
+                try {
+                    message = await message.fetch();
+                } catch (error) {
+                    console.warn('Could not fetch partial deleted message:', error);
+                    return;
+                }
+            }
+
+            // Ignore bot messages and DMs
+            if (message.author?.bot || !message.guild) return;
+
+            const logChannelId = process.env.DELETED_MESSAGES_CHANNEL;
+            if (!logChannelId) return;
+
+            const logChannel = await message.client.channels.fetch(logChannelId).catch(() => null);
+            if (!logChannel || !(logChannel instanceof TextChannel)) {
+                console.warn(`Deleted message log channel ${logChannelId} not found or not a text channel.`);
+                return;
+            }
+
+            const content = message.content || '*[No text content]*';
+            const userMention = message.author ? `<@${message.author.id}>` : 'Unknown User';
+
+            const logMessage = [
+                '**Deleted Message!**',
+                `User: ${userMention}`,
+                '```',
+                content,
+                '```'
+            ].join('\n');
+
+            await logChannel.send(logMessage);
+        } catch (error) {
+            console.error('Error logging deleted message:', error);
+        }
+    }
+
     public async handleMessage(message: Message): Promise<boolean> {
         try {
             return await this.checkAndBanSpammer(message);
