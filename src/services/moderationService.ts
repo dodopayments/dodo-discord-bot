@@ -18,7 +18,10 @@ const CONFIG = {
         "please...go...𝗖𝗥𝗘𝗔𝗧𝗘...𝗧𝗜𝗖𝗞𝗘𝗧...team",
         "help...earn...within...pay...your...profit",
         "...**...submit...your...questions...issues...@...",
-        "...help...first...people...earning...month...profits"
+        "...help...first...people...earning...month...profits",
+        "please...support...⬇️...ht...",
+        "please...support...⬇️...http...",
+        "please...support...⬇️...https..."
     ]
 };
 
