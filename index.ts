@@ -58,6 +58,7 @@ import {
     Events,
     ModalActionRowComponentBuilder,
     DMChannel,
+    ThreadChannel,
     EmbedBuilder,
 } from 'discord.js';
 import dotenv from 'dotenv';
@@ -737,6 +738,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const bi = interaction as ButtonInteraction;
 
             if (bi.customId === 'mark_resolved') {
+                const member = bi.member as GuildMember;
+                const isMod = member?.roles.cache.has(MOD_ROLE_ID!);
+
+                let isPoster = false;
+                if (bi.channel?.isThread()) {
+                    const thread = bi.channel as ThreadChannel;
+                    try {
+                        const starterMessage = await thread.fetchStarterMessage();
+                        isPoster = bi.user.id === starterMessage?.author.id;
+                    } catch (e) {
+                        // Fallback to ownerId if starter message is inaccessible
+                        isPoster = bi.user.id === thread.ownerId;
+                    }
+                } else if (bi.message.reference?.messageId) {
+                    try {
+                        const originalMsg = await bi.channel?.messages.fetch(bi.message.reference.messageId);
+                        isPoster = bi.user.id === originalMsg?.author.id;
+                    } catch (e) {
+                        // Ignore fetch errors
+                    }
+                }
+
+                if (!isMod && !isPoster) {
+                    await bi.reply({
+                        content: "You're not allowed to do that. Only the person who posted the message or a moderator can mark it as resolved.",
+                        ephemeral: true
+                    });
+                    return;
+                }
+
                 const message = bi.message;
 
                 // Disable the button
