@@ -23,7 +23,8 @@ const CONFIG = {
         "please...support...⬇️...http...",
         "please...support...⬇️...https...",
         "for...help...go...x.com...status",
-        "go...here...share...google"
+        "...go...here...share...google...",
+        "...help...first...interested...to...earning...dm..."
     ]
 };
 
