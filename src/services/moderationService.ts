@@ -24,7 +24,8 @@ const CONFIG = {
         "please...support...⬇️...https...",
         "for...help...go...x.com...status",
         "...go...here...share...google...",
-        "...help...first...interested...to...earning...dm..."
+        "...help...first...interested...to...earning...dm...",
+        "...Submit...questions...issues...below...ht...io..."
     ]
 };
 
