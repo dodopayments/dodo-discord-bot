@@ -1,4 +1,5 @@
 import { Message, TextChannel } from 'discord.js';
+import crypto from 'crypto';
 
 const CONFIG = {
     BANNED_SENTENCES: [
@@ -26,6 +27,12 @@ const CONFIG = {
         "...go...here...share...google...",
         "...help...first...interested...to...earning...dm...",
         "...submit...questions...issues...below...ht...io..."
+    ],
+    BANNED_IMAGES: [
+        "85c4c41aef0c0aa2e652a64ce917c08bbc3a459c4313016dbd7c12a3710927c1",
+        "f303a1ffe7064b5c07ec1c96233cf9a6264eda210e96b81f7232a922717d4b24",
+        "5dbe10923b87d3d0f126ff1165f488d6472392417de9210ed25c83896f093992",
+        "897940e8a7df7c9c13a750b79a60227f0099f3857f46287614c5edb650490452",
     ]
 };
 
@@ -150,8 +157,80 @@ class ModerationService {
         }
     }
 
+    private async checkAndTimeoutForImages(message: Message): Promise<boolean> {
+        // Ignore DMs and bot messages
+        if (!message.guild || message.author.bot) return false;
+
+        const attachments = message.attachments;
+        if (attachments.size < 2) return false;
+
+        let matchCount = 0;
+
+        for (const attachment of attachments.values()) {
+            if (!attachment.contentType?.startsWith('image/')) continue;
+
+            try {
+                const response = await fetch(attachment.url);
+                if (!response.ok) continue;
+
+                const buffer = await response.arrayBuffer();
+                const hash = crypto.createHash('sha256').update(Buffer.from(buffer)).digest('hex');
+
+                if (CONFIG.BANNED_IMAGES.includes(hash)) {
+                    matchCount++;
+                }
+
+                if (matchCount >= 2) {
+                    break;
+                }
+            } catch (error) {
+                console.error('Error processing attachment:', error);
+            }
+        }
+
+        if (matchCount >= 2) {
+            console.log(`Banned images detected from ${message.author.tag}. Match count: ${matchCount}`);
+
+            // Delete the message
+            try {
+                if (message.deletable) await message.delete();
+            } catch (e) {
+                console.warn('Could not delete message with banned images:', e);
+            }
+
+            // Time out user for 3 days
+            try {
+                const member = message.member;
+                if (member) {
+                    if (member.moderatable) {
+                        await member.timeout(3 * 24 * 60 * 60 * 1000, 'Sending banned images (Hacked Account)');
+                        console.log(`Timed out user ${message.author.tag} for sending banned images.`);
+                    } else {
+                        console.warn(`User ${message.author.tag} is not moderatable.`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Failed to timeout user ${message.author.tag}:`, error);
+            }
+
+            // Write a message in #general
+            const generalChannelId = process.env.GENERAL_CHANNEL_ID;
+            if (generalChannelId) {
+                const generalChannel = await message.client.channels.fetch(generalChannelId).catch(() => null);
+                if (generalChannel && generalChannel.isTextBased() && 'send' in generalChannel) {
+                    await generalChannel.send(`Hey <@${message.author.id}>, seems like your account has been hacked. For that reason we've timed you out. Once your account is back, DM a moderator requesting to revoke the timeout.`);
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     public async handleMessage(message: Message): Promise<boolean> {
         try {
+            if (await this.checkAndTimeoutForImages(message)) return true;
             return await this.checkAndBanSpammer(message);
         } catch (error) {
             console.error('Error in moderation service:', error);
