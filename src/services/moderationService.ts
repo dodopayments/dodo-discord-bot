@@ -169,6 +169,9 @@ class ModerationService {
         for (const attachment of attachments.values()) {
             if (!attachment.contentType?.startsWith('image/')) continue;
 
+            // Skip images larger than 5MB
+            if (attachment.size > 5 * 1024 * 1024) continue;
+
             try {
                 const response = await fetch(attachment.url);
                 if (!response.ok) continue;
