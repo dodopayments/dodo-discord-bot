@@ -26,7 +26,8 @@ const CONFIG = {
         "for...help...go...x.com...status",
         "...go...here...share...google...",
         "...help...first...interested...to...earning...dm...",
-        "...submit...questions...issues...below...ht...io..."
+        "...submit...questions...issues...below...ht...io...".
+        "submit...questions...issues...below...pages"
     ],
     BANNED_IMAGES: [
         "85c4c41aef0c0aa2e652a64ce917c08bbc3a459c4313016dbd7c12a3710927c1",
