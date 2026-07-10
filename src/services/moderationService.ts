@@ -152,13 +152,25 @@ class ModerationService {
             const content = message.content || '*[No text content]*';
             const userMention = message.author ? `<@${message.author.id}>` : 'Unknown User';
 
-            const logMessage = [
+            let logMessage = [
                 '**Deleted Message!**',
                 `User: ${userMention}`,
                 '```',
                 content,
                 '```'
             ].join('\n');
+
+            if (message.attachments && message.attachments.size > 0) {
+                const imageLogs: string[] = [];
+                for (const attachment of message.attachments.values()) {
+                    if (attachment.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|tiff|bmp)$/i.test(attachment.url)) {
+                        imageLogs.push(`deleted image: \`\`\`${attachment.url}\`\`\``);
+                    }
+                }
+                if (imageLogs.length > 0) {
+                    logMessage += '\n' + imageLogs.join('\n');
+                }
+            }
 
             await logChannel.send(logMessage);
         } catch (error) {
