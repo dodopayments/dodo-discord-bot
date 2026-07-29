@@ -727,6 +727,7 @@ client.once(Events.ClientReady, async () => {
     // Initialize services
     // await databaseService.connect(); // Removed for in-memory only
     reminderService.initialize(client);
+    await botTrapService.initialize(client);
 
     await registerCommands();
 });
