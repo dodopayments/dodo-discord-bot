@@ -2,8 +2,11 @@ import { Client, Message, TextChannel, AttachmentBuilder } from 'discord.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class BotTrapService {
     private trapChannelId: string | undefined;
@@ -41,16 +44,22 @@ class BotTrapService {
                     'If you\'re a bot, goodbye!'
                 ].join('\n');
 
-                const imagePath = path.join(process.cwd(), 'src', 'media', 'dodopot-warning.png');
+                // Try module-relative path first (e.g. dist/src/media or src/media), then fallback to process.cwd()
+                const candidatePaths = [
+                    path.resolve(__dirname, '..', 'media', 'dodopot-warning.png'),
+                    path.resolve(__dirname, '..', '..', 'src', 'media', 'dodopot-warning.png'),
+                    path.join(process.cwd(), 'src', 'media', 'dodopot-warning.png')
+                ];
+                const imagePath = candidatePaths.find(p => fs.existsSync(p));
 
-                if (fs.existsSync(imagePath)) {
+                if (imagePath) {
                     const attachment = new AttachmentBuilder(imagePath, { name: 'dodopot-warning.png' });
                     await channel.send({
                         content: warningContent,
                         files: [attachment]
                     });
                 } else {
-                    console.warn(`[BotTrapService] Warning image not found at ${imagePath}, posting text only.`);
+                    console.warn(`[BotTrapService] Warning image not found at candidate locations, posting text only.`);
                     await channel.send({ content: warningContent });
                 }
             }
