@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "tsx index.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').mkdirSync('dist/src/media', { recursive: true }); require('fs').copyFileSync('src/media/dodopot-warning.png', 'dist/src/media/dodopot-warning.png')\"",
     "build:watch": "tsc --watch",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
