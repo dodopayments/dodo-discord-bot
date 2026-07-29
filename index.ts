@@ -37,6 +37,7 @@ import { reminderService } from './src/services/reminderService.js';
 import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
+import { botTrapService } from './src/services/botTrap.js';
 import { DURATION } from './src/utils/constants.js';
 
 import {
@@ -1079,6 +1080,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // Event handler for new messages (N8N Gateway)
 client.on(Events.MessageCreate, async (message) => {
+    // 0. Run through honeypot bot trap service first
+    const isTrap = await botTrapService.handleMessage(message);
+    if (isTrap) return;
+
     // 1. Run through moderation service first
     const isSpam = await moderationService.handleMessage(message);
     if (isSpam) return;
