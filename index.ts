@@ -1109,18 +1109,43 @@ client.on(Events.MessageCreate, async (message) => {
 
 // Event handler for when a new member joins the server
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+    if (member.user.bot) return;
+    if (member.guild.id !== GUILD_ID) return;
+
     try {
-        try {
-            await member.roles.add(MEMBER_ROLE_ID, 'Auto-assigned Member role on server join');
-            console.log(`Successfully assigned Member role (${MEMBER_ROLE_ID}) to ${member.user.tag}`);
-        } catch (roleError) {
-            console.error(`Failed to assign Member role to ${member.user.tag}:`, roleError);
+        if (!member.pending) {
+            try {
+                await member.roles.add(MEMBER_ROLE_ID, 'Auto-assigned Member role on server join');
+                console.log(`Successfully assigned Member role (${MEMBER_ROLE_ID}) to ${member.user.tag}`);
+            } catch (roleError) {
+                console.error(`Failed to assign Member role to ${member.user.tag}:`, roleError);
+            }
         }
 
         // Automatically trigger ping-intro flow for new users
         await autoPingIntroForNewUser(member);
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
+    }
+});
+
+// Event handler for when a member passes membership screening
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    if (newMember.user.bot) return;
+    if (newMember.guild.id !== GUILD_ID) return;
+
+    try {
+        // Check if the user just passed membership screening
+        if (oldMember.pending && !newMember.pending) {
+            try {
+                await newMember.roles.add(MEMBER_ROLE_ID, 'Auto-assigned Member role after screening');
+                console.log(`Successfully assigned Member role (${MEMBER_ROLE_ID}) to ${newMember.user.tag} after screening`);
+            } catch (roleError) {
+                console.error(`Failed to assign Member role to ${newMember.user.tag}:`, roleError);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to handle GuildMemberUpdate:', e);
     }
 });
 
