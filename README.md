@@ -38,11 +38,20 @@ npm start      # Production
 |----------|-------------|----------|
 | `DISCORD_TOKEN` | Bot token | ✅ |
 | `CLIENT_ID` | Bot client ID | ✅ |
+| `GUILD_ID` | Guild ID | ✅ |
 | `INTRO_CHANNEL_ID` | #introductions channel | ✅ |
 | `WORKING_ON_CHANNEL_ID` | #working-on channel | ✅ |
+| `SHOWCASE_CHANNEL_ID` | #showcase channel | ✅ |
 | `MOD_ROLE_ID` | Moderator role ID | ✅ |
 | `DODO_BUILDER_ROLE_ID` | Builder role ID | ✅ |
-| `GUILD_ID` | Guild ID (optional) | ❌ |
+| `MEMBER_ROLE_ID` | Member role ID | ✅ |
+| `DELETED_MESSAGES_CHANNEL` | Logging channel for deleted messages | ✅ |
+| `BOTS_TRAP_CHANNEL` | Channel to trap bots | ✅ |
+| `GENERAL_CHANNEL_ID` | General channel ID | ✅ |
+| `BOT_TEST_CHANNEL` | Bot testing channel ID | ✅ |
+| `GET_HELP_CHANNEL` | Get help channel ID | ✅ |
+| `OTHER_TAG_HELP_ID` | Other tag ID for get help | ✅ |
+| `N8N_PRODUCTION_URL` | N8N Webhook URL | ❌ |
 
 ## Commands
 
