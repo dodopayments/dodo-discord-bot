@@ -77,11 +77,12 @@ const {
     DODO_BUILDER_ROLE_ID,
     DELETED_MESSAGES_CHANNEL,
     BOTS_TRAP_CHANNEL,
+    MEMBER_ROLE_ID,
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID || !DELETED_MESSAGES_CHANNEL || !BOTS_TRAP_CHANNEL) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID, DELETED_MESSAGES_CHANNEL, BOTS_TRAP_CHANNEL');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID || !DELETED_MESSAGES_CHANNEL || !BOTS_TRAP_CHANNEL || !MEMBER_ROLE_ID) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID, DELETED_MESSAGES_CHANNEL, BOTS_TRAP_CHANNEL, MEMBER_ROLE_ID');
     process.exit(1);
 }
 
@@ -1109,6 +1110,13 @@ client.on(Events.MessageCreate, async (message) => {
 // Event handler for when a new member joins the server
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
+        try {
+            await member.roles.add(MEMBER_ROLE_ID, 'Auto-assigned Member role on server join');
+            console.log(`Successfully assigned Member role (${MEMBER_ROLE_ID}) to ${member.user.tag}`);
+        } catch (roleError) {
+            console.error(`Failed to assign Member role to ${member.user.tag}:`, roleError);
+        }
+
         // Automatically trigger ping-intro flow for new users
         await autoPingIntroForNewUser(member);
     } catch (e) {
