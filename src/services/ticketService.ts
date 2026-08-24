@@ -152,11 +152,12 @@ export class TicketService {
 
             await interaction.deferReply({ ephemeral: true });
 
+            let ticketChannel: TextChannel | undefined;
             try {
                 const guild = interaction.guild;
                 if (!guild) throw new Error('Guild not found');
 
-                const ticketChannel = await guild.channels.create({
+                ticketChannel = await guild.channels.create({
                     name: `ticket-${interaction.user.username}`,
                     type: ChannelType.GuildText,
                     parent: process.env.TICKETS_CATEGORY_ID,
@@ -194,6 +195,13 @@ export class TicketService {
                 await interaction.editReply({ content: `Your ticket has been created: <#${ticketChannel.id}>` });
             } catch (err) {
                 console.error('Failed to create ticket:', err);
+                if (ticketChannel) {
+                    try {
+                        await ticketChannel.delete('Cleanup orphaned channel due to send failure');
+                    } catch (cleanupErr) {
+                        console.error('Failed to cleanup orphaned ticket channel:', cleanupErr);
+                    }
+                }
                 await interaction.editReply({ content: 'Failed to create ticket.' });
             }
             return true;
