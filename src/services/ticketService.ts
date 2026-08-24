@@ -120,6 +120,7 @@ export class TicketService {
                 .setLabel('Business ID (add if required)')
                 .setPlaceholder('bus_...')
                 .setStyle(TextInputStyle.Short)
+                .setMaxLength(25)
                 .setRequired(false);
 
             const issueInput = new TextInputBuilder()
@@ -127,6 +128,7 @@ export class TicketService {
                 .setLabel('Question/issue')
                 .setPlaceholder('Post your query/issue here')
                 .setStyle(TextInputStyle.Paragraph)
+                .setMaxLength(3000)
                 .setRequired(true);
 
             const row1 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(busIdInput);
