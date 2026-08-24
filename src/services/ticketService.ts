@@ -158,7 +158,7 @@ export class TicketService {
                 if (!guild) throw new Error('Guild not found');
 
                 ticketChannel = await guild.channels.create({
-                    name: `ticket-${interaction.user.username}`,
+                    name: `ticket-${interaction.user.username}-${interaction.user.id}`,
                     type: ChannelType.GuildText,
                     parent: process.env.TICKETS_CATEGORY_ID,
                     permissionOverwrites: [
@@ -230,14 +230,12 @@ export class TicketService {
                 await (channel as TextChannel).setName(`ticket-closed-${deleteAt}`);
 
                 // Remove SendMessages access for the user who opened it, but keep ViewChannel
-                const overwrites = (channel as TextChannel).permissionOverwrites.cache;
-                for (const [id, overwrite] of overwrites) {
-                    if (overwrite.type === OverwriteType.Member && id !== interaction.client.user!.id) {
-                        await (channel as TextChannel).permissionOverwrites.edit(id, {
-                            SendMessages: false,
-                            ViewChannel: true
-                        });
-                    }
+                const ownerId = channel.name.split('-').pop();
+                if (ownerId && ownerId !== interaction.client.user!.id) {
+                    await (channel as TextChannel).permissionOverwrites.edit(ownerId, {
+                        SendMessages: false,
+                        ViewChannel: true
+                    });
                 }
 
                 await interaction.editReply({ content: 'Ticket closed and locked. It will be permanently deleted in 3 days.' });
