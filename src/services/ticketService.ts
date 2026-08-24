@@ -226,11 +226,13 @@ export class TicketService {
 
             await interaction.reply({ content: 'Closing ticket...' });
             try {
+                // Extract ownerId before renaming the channel
+                const ownerId = channel.name.split('-').pop();
+
                 const deleteAt = Date.now() + (3 * 24 * 60 * 60 * 1000); // 3 days
                 await (channel as TextChannel).setName(`ticket-closed-${deleteAt}`);
 
                 // Remove SendMessages access for the user who opened it, but keep ViewChannel
-                const ownerId = channel.name.split('-').pop();
                 if (ownerId && ownerId !== interaction.client.user!.id) {
                     await (channel as TextChannel).permissionOverwrites.edit(ownerId, {
                         SendMessages: false,
