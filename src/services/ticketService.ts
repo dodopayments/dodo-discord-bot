@@ -25,7 +25,7 @@ export class TicketService {
 
     private async setupTicketChannel(client: Client) {
         if (!process.env.NEW_TICKET_TEXT_CHANNEL_ID) return;
-        
+
         try {
             const ticketChannel = await client.channels.fetch(process.env.NEW_TICKET_TEXT_CHANNEL_ID) as TextChannel;
             if (ticketChannel) {
@@ -62,33 +62,55 @@ export class TicketService {
                 if (!guild) return;
                 const category = await guild.channels.fetch(process.env.TICKETS_CATEGORY_ID);
                 if (!category || category.type !== ChannelType.GuildCategory) return;
-                
+
                 // Check all children in this category
                 for (const [_id, channel] of category.children.cache) {
                     if (channel.type === ChannelType.GuildText && channel.name.startsWith('ticket-closed-')) {
                         const timestampStr = channel.name.replace('ticket-closed-', '');
                         const timestamp = parseInt(timestampStr, 10);
-                            if (!isNaN(timestamp) && Date.now() >= timestamp) {
-                                try {
-                                    await channel.delete();
-                                    console.log(`Deleted expired ticket channel: ${channel.name}`);
-                                } catch (e) {
-                                    console.error(`Failed to delete expired ticket channel ${channel.name}:`, e);
-                                }
+                        if (!isNaN(timestamp) && Date.now() >= timestamp) {
+                            try {
+                                await channel.delete();
+                                console.log(`Deleted expired ticket channel: ${channel.name}`);
+                            } catch (e) {
+                                console.error(`Failed to delete expired ticket channel ${channel.name}:`, e);
                             }
                         }
                     }
+                }
             } catch (e) {
                 console.error('Error in closed tickets check:', e);
             }
         };
-        
+
         checkClosedTickets();
         setInterval(checkClosedTickets, 60 * 60 * 1000); // Check every hour
     }
 
     public async handleButtonInteraction(interaction: ButtonInteraction) {
         if (interaction.customId === 'create_ticket_btn') {
+            if (process.env.TICKETS_CATEGORY_ID && interaction.guild) {
+                const category = interaction.guild.channels.cache.get(process.env.TICKETS_CATEGORY_ID);
+                if (category && category.type === ChannelType.GuildCategory) {
+                    const existingTicket = category.children.cache.find(c => {
+                        if (c.type !== ChannelType.GuildText) return false;
+                        if (!c.name.startsWith('ticket-')) return false;
+                        if (c.name.startsWith('ticket-closed-')) return false;
+
+                        const overwrite = c.permissionOverwrites.cache.get(interaction.user.id);
+                        return overwrite ? overwrite.allow.has(PermissionFlagsBits.SendMessages) : false;
+                    });
+
+                    if (existingTicket) {
+                        await interaction.reply({
+                            content: `You already have a ticket open (<#${existingTicket.id}>). Please post your query/issue there or close that ticket first in order to be able to create a new ticket.`,
+                            ephemeral: true
+                        });
+                        return true;
+                    }
+                }
+            }
+
             const modal = new ModalBuilder()
                 .setCustomId('create_ticket_modal')
                 .setTitle('Create a Ticket');
@@ -120,7 +142,7 @@ export class TicketService {
         if (interaction.customId === 'create_ticket_modal') {
             const busId = interaction.fields.getTextInputValue('ticket_bus_id');
             const issue = interaction.fields.getTextInputValue('ticket_issue');
-            
+
             if (!process.env.TICKETS_CATEGORY_ID) {
                 await interaction.reply({ content: 'TICKETS_CATEGORY_ID is not configured.', ephemeral: true });
                 return true;
@@ -131,7 +153,7 @@ export class TicketService {
             try {
                 const guild = interaction.guild;
                 if (!guild) throw new Error('Guild not found');
-                
+
                 const ticketChannel = await guild.channels.create({
                     name: `ticket-${interaction.user.username}`,
                     type: ChannelType.GuildText,
@@ -161,7 +183,7 @@ export class TicketService {
                 });
 
                 const messageContent = `**Business ID:** ${busId || 'Not provided'}\n**Query/Issue:** ${issue}\n\nIf you have any additional information to add, please post it below.`;
-                
+
                 const embed = new EmbedBuilder()
                     .setColor(0x0099ff)
                     .setDescription(messageContent);
@@ -180,13 +202,13 @@ export class TicketService {
     public async handleCommand(interaction: CommandInteraction) {
         if (interaction.commandName === 'close') {
             if (!interaction.guild) return true;
-            
+
             const channel = interaction.channel;
             if (!channel || !('parentId' in channel)) {
                 await interaction.reply({ content: 'This command can only be used in a text channel.', ephemeral: true });
                 return true;
             }
-            
+
             if (channel.parentId !== process.env.TICKETS_CATEGORY_ID) {
                 await interaction.reply({ content: 'You can only use this command inside a ticket channel.', ephemeral: true });
                 return true;
