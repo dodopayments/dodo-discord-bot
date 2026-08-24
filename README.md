@@ -52,6 +52,8 @@ npm start      # Production
 | `GET_HELP_CHANNEL` | Get help channel ID | ✅ |
 | `OTHER_TAG_HELP_ID` | Other tag ID for get help | ✅ |
 | `N8N_PRODUCTION_URL` | N8N Webhook URL | ❌ |
+| `TICKETS_CATEGORY_ID` | Tickets category ID (new ticket text channels created under this category) | ✅ |
+| `NEW_TICKET_TEXT_CHANNEL_ID` | New ticket text channel ID | ✅ |
 
 ## Commands
 
