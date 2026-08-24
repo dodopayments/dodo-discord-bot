@@ -64,7 +64,7 @@ export class TicketService {
                 if (!category || category.type !== ChannelType.GuildCategory) return;
                 
                 // Check all children in this category
-                for (const [id, channel] of category.children.cache) {
+                for (const [_id, channel] of category.children.cache) {
                     if (channel.type === ChannelType.GuildText && channel.name.startsWith('ticket-closed-')) {
                         const timestampStr = channel.name.replace('ticket-closed-', '');
                         const timestamp = parseInt(timestampStr, 10);

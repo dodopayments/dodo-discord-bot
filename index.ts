@@ -62,9 +62,6 @@ import {
     DMChannel,
     ThreadChannel,
     EmbedBuilder,
-    ChannelType,
-    PermissionFlagsBits,
-    OverwriteType,
 } from 'discord.js';
 import dotenv from 'dotenv';
 
