@@ -65,10 +65,9 @@ export class TicketService {
                 
                 // Check all children in this category
                 for (const [id, channel] of category.children.cache) {
-                    if (channel.name.startsWith('closed-')) {
-                        const parts = channel.name.split('-');
-                        if (parts.length > 1) {
-                            const timestamp = parseInt(parts[1], 10);
+                    if (channel.type === ChannelType.GuildText && channel.name.startsWith('ticket-closed-')) {
+                        const timestampStr = channel.name.replace('ticket-closed-', '');
+                        const timestamp = parseInt(timestampStr, 10);
                             if (!isNaN(timestamp) && Date.now() >= timestamp) {
                                 try {
                                     await channel.delete();
@@ -79,7 +78,6 @@ export class TicketService {
                             }
                         }
                     }
-                }
             } catch (e) {
                 console.error('Error in closed tickets check:', e);
             }
@@ -197,7 +195,7 @@ export class TicketService {
             await interaction.reply({ content: 'Closing ticket...' });
             try {
                 const deleteAt = Date.now() + (3 * 24 * 60 * 60 * 1000); // 3 days
-                await (channel as TextChannel).setName(`closed-${deleteAt}`);
+                await (channel as TextChannel).setName(`ticket-closed-${deleteAt}`);
 
                 // Remove SendMessages access for the user who opened it, but keep ViewChannel
                 const overwrites = (channel as TextChannel).permissionOverwrites.cache;
