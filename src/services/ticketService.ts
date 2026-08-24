@@ -128,7 +128,7 @@ export class TicketService {
                 .setLabel('Question/issue')
                 .setPlaceholder('Post your query/issue here')
                 .setStyle(TextInputStyle.Paragraph)
-                .setMaxLength(3000)
+                .setMaxLength(3500)
                 .setRequired(true);
 
             const row1 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(busIdInput);
