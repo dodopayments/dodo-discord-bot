@@ -33,11 +33,11 @@ import os from 'node:os';
 // New imports for enhanced features
 
 
-import { reminderService } from './src/services/reminderService.js';
 import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
 import { botTrapService } from './src/services/botTrap.js';
+import { ticketService } from './src/services/ticketService.js';
 import { DURATION } from './src/utils/constants.js';
 
 import {
@@ -82,11 +82,13 @@ const {
     BOT_TEST_CHANNEL,
     GET_HELP_CHANNEL,
     OTHER_TAG_HELP_ID,
+    NEW_TICKET_TEXT_CHANNEL_ID,
+    TICKETS_CATEGORY_ID,
 } = process.env as Record<string, string | undefined>;
 
 // Validate that all required environment variables are present
-if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID || !DELETED_MESSAGES_CHANNEL || !BOTS_TRAP_CHANNEL || !MEMBER_ROLE_ID || !GENERAL_CHANNEL_ID || !BOT_TEST_CHANNEL || !GET_HELP_CHANNEL || !OTHER_TAG_HELP_ID) {
-    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID, DELETED_MESSAGES_CHANNEL, BOTS_TRAP_CHANNEL, MEMBER_ROLE_ID, GENERAL_CHANNEL_ID, BOT_TEST_CHANNEL, GET_HELP_CHANNEL, OTHER_TAG_HELP_ID');
+if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_ON_CHANNEL_ID || !SHOWCASE_CHANNEL_ID || !MOD_ROLE_ID || !DODO_BUILDER_ROLE_ID || !DELETED_MESSAGES_CHANNEL || !BOTS_TRAP_CHANNEL || !MEMBER_ROLE_ID || !GENERAL_CHANNEL_ID || !BOT_TEST_CHANNEL || !GET_HELP_CHANNEL || !OTHER_TAG_HELP_ID || !NEW_TICKET_TEXT_CHANNEL_ID || !TICKETS_CATEGORY_ID) {
+    console.error('Missing one or more required env vars: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, INTRO_CHANNEL_ID, WORKING_ON_CHANNEL_ID, SHOWCASE_CHANNEL_ID, MOD_ROLE_ID, DODO_BUILDER_ROLE_ID, DELETED_MESSAGES_CHANNEL, BOTS_TRAP_CHANNEL, MEMBER_ROLE_ID, GENERAL_CHANNEL_ID, BOT_TEST_CHANNEL, GET_HELP_CHANNEL, OTHER_TAG_HELP_ID, NEW_TICKET_TEXT_CHANNEL_ID, TICKETS_CATEGORY_ID');
     process.exit(1);
 }
 
@@ -261,6 +263,10 @@ async function registerCommands() {
     const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN!);
 
     const commands = [
+        {
+            name: 'close',
+            description: 'Close the current ticket channel.',
+        },
         {
             name: 'ping-intro',
             description: 'Ping user(s) to introduce themselves (mods only).',
@@ -486,15 +492,10 @@ async function autoPingIntroForNewUser(member: GuildMember) {
 /**
  * Starts the introduction flow by sending dismissible DM messages to the user
  */
-async function startIntroFlow(guildId: string, targetUserId: string, shouldScheduleReminder: boolean = true) {
+async function startIntroFlow(guildId: string, targetUserId: string) {
     try {
         // Fetch the user to send them a DM
         const user = await client.users.fetch(targetUserId);
-
-        // Track that intro flow started
-        if (shouldScheduleReminder) {
-            await reminderService.scheduleReminder(guildId, targetUserId);
-        }
 
         // Create buttons for both introduction and working-on forms
         const introButton = new ButtonBuilder()
@@ -615,7 +616,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             await destChannel.send({ embeds: [introEmbed] });
 
             // Track analytics and award points
-            await reminderService.cancelReminder(guildId, targetUserId);
 
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
@@ -660,7 +660,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
                 console.warn('Could not add user to public thread (may be fine):', err);
             }
 
-            await reminderService.cancelReminder(guildId, targetUserId);
+
 
             const userData = userCompletions.get(targetUserId);
             const hasIntro = userData && userData.completions.has('intro');
@@ -704,7 +704,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
         }
 
         // Track analytics and award points
-        await reminderService.cancelReminder(guildId, targetUserId);
 
         // Check completion status from memory
         const userData = userCompletions.get(targetUserId);
@@ -732,10 +731,11 @@ client.once(Events.ClientReady, async () => {
 
     // Initialize services
     // await databaseService.connect(); // Removed for in-memory only
-    reminderService.initialize(client);
     await botTrapService.initialize(client);
 
     await registerCommands();
+
+    ticketService.initialize(client);
 });
 
 // Main interaction handler for buttons, modals, and commands
@@ -744,6 +744,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Handle button interactions (form selection buttons)
         if (interaction.isButton()) {
             const bi = interaction as ButtonInteraction;
+
+            if (await ticketService.handleButtonInteraction(bi)) {
+                return;
+            }
 
             if (bi.customId === 'mark_resolved') {
                 const member = bi.member as GuildMember;
@@ -883,11 +887,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await handleModalSubmit(ms);
                 return;
             }
+            if (await ticketService.handleModalSubmit(ms)) {
+                return;
+            }
         }
 
         // Handle slash commands
         if (interaction.isCommand()) {
             const cmd = interaction;
+
+            if (await ticketService.handleCommand(cmd)) {
+                return;
+            }
 
             if (cmd.commandName === 'ping-intro') {
                 const member = cmd.member as GuildMember | null;
@@ -916,7 +927,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
 
                 for (const targetId of targets) {
-                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId, false);
+                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
                 }
                 return;
             }
