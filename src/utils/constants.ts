@@ -63,15 +63,12 @@ export const DURATION = {
     // Welcome flow
     WELCOME_DELAY_MS: 60 * 1000, // 60 seconds
 
-    // Reminders
-    REMINDER_DELAY_MS: 24 * 60 * 60 * 1000, // 24 hours
-    REMINDER_CHECK_INTERVAL: '0 * * * *', // Every hour (cron syntax)
 
     // Data retention (in days)
     USER_PROGRESS_TTL: 90,
     ANALYTICS_TTL: 365,
     INCOMPLETE_INTRO_TTL: 30,
-    REMINDER_RECORD_TTL: 7,
+
 
     // Thread archival
     THREAD_ARCHIVE_DURATION: 1440, // 24 hours
