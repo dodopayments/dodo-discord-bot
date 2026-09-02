@@ -62,7 +62,6 @@ export const DURATION = {
     // Welcome flow
     WELCOME_DELAY_MS: 60 * 1000, // 60 seconds
 
-
     // Data retention (in days)
     USER_PROGRESS_TTL: 90,
     ANALYTICS_TTL: 365,
