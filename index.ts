@@ -651,7 +651,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
                 console.warn('Could not add user to public thread (may be fine):', err);
             }
 
-
             const userData = userCompletions.get(targetUserId);
             const hasIntro = userData && userData.completions.has('intro');
             const completed = hasIntro && userData.completions.has('showcase'); // We just added showcase
