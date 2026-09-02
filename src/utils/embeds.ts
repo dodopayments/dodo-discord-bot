@@ -83,8 +83,6 @@ export function createWorkingEmbed(projectName: string, userId: string, about: s
         .setColor(COLORS.DARK_GREEN);
 }
 
-
-
 /**
  * Error embed
  */

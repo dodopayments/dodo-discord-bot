@@ -608,8 +608,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             const introEmbed = buildIntroEmbed(name, targetUserId, about);
             await destChannel.send({ embeds: [introEmbed] });
 
-            // Track analytics and award points
-
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
             const hasProject = userData && (userData.completions.has('working') || userData.completions.has('showcase'));
@@ -694,8 +692,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
         } catch (err) {
             console.warn('Could not add user to public thread (may be fine):', err);
         }
-
-        // Track analytics and award points
 
         // Check completion status from memory
         const userData = userCompletions.get(targetUserId);
