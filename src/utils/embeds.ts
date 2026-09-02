@@ -83,22 +83,7 @@ export function createWorkingEmbed(projectName: string, userId: string, about: s
         .setColor(COLORS.DARK_GREEN);
 }
 
-/**
- * Reminder embed (for incomplete intro)
- */
-export function createReminderEmbed(userId: string): EmbedBuilder {
-    return createBaseEmbed()
-        .setTitle(`${EMOJI.BELL} Friendly Reminder`)
-        .setDescription(
-            `Hey <@${userId}>! ${EMOJI.WAVE}\n\n` +
-            `We noticed you haven't completed your introduction yet.\n\n` +
-            `Take just **60 seconds** to:\n` +
-            `${EMOJI.CHECK} Fill your introduction\n` +
-            `${EMOJI.CHECK} Share what you're working on\n\n` +
-            `Earn the **Dodo Builder** role and join the community! ${EMOJI.ROCKET}`
-        )
-        .setColor(COLORS.YELLOW);
-}
+
 
 /**
  * Error embed
