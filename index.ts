@@ -33,7 +33,6 @@ import os from 'node:os';
 // New imports for enhanced features
 
 
-import { reminderService } from './src/services/reminderService.js';
 import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
@@ -493,15 +492,10 @@ async function autoPingIntroForNewUser(member: GuildMember) {
 /**
  * Starts the introduction flow by sending dismissible DM messages to the user
  */
-async function startIntroFlow(guildId: string, targetUserId: string, shouldScheduleReminder: boolean = true) {
+async function startIntroFlow(guildId: string, targetUserId: string) {
     try {
         // Fetch the user to send them a DM
         const user = await client.users.fetch(targetUserId);
-
-        // Track that intro flow started
-        if (shouldScheduleReminder) {
-            await reminderService.scheduleReminder(guildId, targetUserId);
-        }
 
         // Create buttons for both introduction and working-on forms
         const introButton = new ButtonBuilder()
@@ -622,7 +616,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             await destChannel.send({ embeds: [introEmbed] });
 
             // Track analytics and award points
-            await reminderService.cancelReminder(guildId, targetUserId);
 
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
@@ -667,7 +660,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
                 console.warn('Could not add user to public thread (may be fine):', err);
             }
 
-            await reminderService.cancelReminder(guildId, targetUserId);
+
 
             const userData = userCompletions.get(targetUserId);
             const hasIntro = userData && userData.completions.has('intro');
@@ -711,7 +704,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
         }
 
         // Track analytics and award points
-        await reminderService.cancelReminder(guildId, targetUserId);
 
         // Check completion status from memory
         const userData = userCompletions.get(targetUserId);
@@ -739,7 +731,6 @@ client.once(Events.ClientReady, async () => {
 
     // Initialize services
     // await databaseService.connect(); // Removed for in-memory only
-    reminderService.initialize(client);
     await botTrapService.initialize(client);
 
     await registerCommands();
@@ -936,7 +927,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
 
                 for (const targetId of targets) {
-                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId, false);
+                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
                 }
                 return;
             }
