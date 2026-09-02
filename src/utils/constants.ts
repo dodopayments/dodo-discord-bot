@@ -16,7 +16,6 @@ export const COLORS = {
 
     // Accent colors
     BLUE: 0x3b82f6,          // Blue-500
-    YELLOW: 0xfbbf24,        // Amber-400
     RED: 0xef4444,           // Red-500
     PURPLE: 0xa855f7,        // Purple-500
 } as const;
@@ -68,7 +67,6 @@ export const DURATION = {
     USER_PROGRESS_TTL: 90,
     ANALYTICS_TTL: 365,
     INCOMPLETE_INTRO_TTL: 30,
-
 
     // Thread archival
     THREAD_ARCHIVE_DURATION: 1440, // 24 hours

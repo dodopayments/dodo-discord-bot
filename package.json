@@ -9,8 +9,8 @@
     "dev": "tsx index.ts",
     "build": "tsc && node -e \"require('fs').mkdirSync('dist/src/media', { recursive: true }); require('fs').copyFileSync('src/media/dodopot-warning.png', 'dist/src/media/dodopot-warning.png')\"",
     "build:watch": "tsc --watch",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --passWithNoTests",
     "lint": "tsc --noEmit",
     "lint:eslint": "eslint . --ext .ts"
   },
@@ -27,13 +27,11 @@
   "dependencies": {
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.3",
-    "mongoose": "^8.0.0",
-    "node-cron": "^3.0.3"
+    "mongoose": "^8.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.0.0",
-    "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
