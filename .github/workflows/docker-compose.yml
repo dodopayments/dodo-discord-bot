@@ -1,8 +1,34 @@
 name: Docker Publish
 
+# Authentication to Google Artifact Registry is keyless via Workload Identity
+# Federation -- no secret is required. The job's `id-token: write` permission is
+# what makes it work: without it GitHub issues no OIDC token and
+# google-github-actions/auth fails before it ever reaches GCP.
+#
+# The service account is bound org-wide at
+# `attribute.repository_owner/dodopayments`, so no GCP-side IAM change is needed
+# for this repo.
+#
+# Security note: workflow_dispatch inputs and repo vars are passed into `run:`
+# steps via `env:` and referenced as shell variables (never inline `${{ }}`) to
+# avoid GitHub Actions template/command injection.
+#
+# Required repo configuration:
+#   vars.DODO_DISCORD_BOT_GAR_LOCATION = full image path without a tag
+#   vars.REGION                        = asia-south1
+
 on:
   release:
     types: [published]
+  # Lets a release be rebuilt without cutting a new tag -- `on: release` runs the
+  # workflow file from the tag's commit, so a fix landed on main is not picked up
+  # by re-running a past release.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing release tag to build and push (e.g. v0.21.0)"
+        required: true
+        type: string
 
 jobs:
   docker_build_and_push:
@@ -10,24 +36,45 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Required for Workload Identity Federation.
+      id-token: write
+    env:
+      IMAGE: ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}
+      REGION: ${{ vars.REGION }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.image_tag || github.ref }}
 
       - name: Extract release tag
         id: get_tag
-        run: echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          RELEASE_TAG="${INPUT_IMAGE_TAG:-${GITHUB_REF#refs/tags/}}"
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Refusing to build unexpected tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Guard required repo variables
+        run: |
+          [ -n "$IMAGE" ]  || { echo "DODO_DISCORD_BOT_GAR_LOCATION repo variable is unset" >&2; exit 1; }
+          [ -n "$REGION" ] || { echo "REGION repo variable is unset" >&2; exit 1; }
 
       - name: Build dodo-discord-bot image
         run: |
-          docker build -t ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }} .
-          docker tag ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }} ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:latest
+          docker build -t "$IMAGE:$RELEASE_TAG" .
+          docker tag "$IMAGE:$RELEASE_TAG" "$IMAGE:latest"
 
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
         with:
-            credentials_json: "${{ secrets.SERVICE_ACCOUNT_KEY }}"
+          workload_identity_provider: projects/1042125736866/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions@dodopayments.iam.gserviceaccount.com
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
@@ -36,10 +83,9 @@ jobs:
         run: "gcloud info"
 
       - name: "Docker auth"
-        run: |
-          gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev"
 
       - name: Push dodo-discord-bot image to GAR
         run: |
-          docker push ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:${{ env.RELEASE_TAG }}
-          docker push ${{ vars.DODO_DISCORD_BOT_GAR_LOCATION }}:latest
+          docker push "$IMAGE:$RELEASE_TAG"
+          docker push "$IMAGE:latest"
