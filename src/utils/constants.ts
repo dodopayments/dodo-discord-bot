@@ -59,9 +59,6 @@ export const EMOJI = {
 
 // ==================== DURATIONS ====================
 export const DURATION = {
-    // Welcome flow
-    WELCOME_DELAY_MS: 60 * 1000, // 60 seconds
-
     // Data retention (in days)
     USER_PROGRESS_TTL: 90,
     ANALYTICS_TTL: 365,
@@ -123,7 +120,6 @@ export const GAMIFICATION = {
 export const MESSAGES = {
     ERRORS: {
         NO_PERMISSION: '❌ You don\'t have permission to use this command.',
-        DM_DISABLED: '⚠️ Could not send you a DM. Please enable DMs from server members.',
         SERVER_ONLY: '❌ This command can only be used in a server.',
         ALREADY_COMPLETED: '✅ You\'ve already completed this form!',
         UNKNOWN_ERROR: '❌ An unexpected error occurred. Please try again later.',
@@ -133,7 +129,6 @@ export const MESSAGES = {
         INTRO_POSTED: '✅ Thanks! Your introduction has been posted publicly in the server.',
         WORKING_POSTED: '✅ Thanks! Your project has been posted in a public thread.',
         BOTH_COMPLETED: '🎉 Congratulations! You completed both forms and earned the Dodo Builder role!',
-        DM_CLEARED: '🧹 Cleared all DM messages from this bot.',
     },
 } as const;
 

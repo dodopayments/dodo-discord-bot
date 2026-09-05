@@ -8,7 +8,7 @@ A TypeScript Discord bot that automates introductions for new members. Users com
 - Dual forms: introduction + work project sharing
 - Awards "Dodo Builder" role upon completion
 - Creates public threads for work discussions
-- Moderator tools: `/ping-intro` and `/clear-dm` commands
+- Moderator tools: `/ping-intro` command
 
 ## Quick Start
 
@@ -56,7 +56,6 @@ npm start      # Production
 ## Commands
 
 - `/ping-intro [user]` - Trigger intro flow (mods only)
-- `/clear-dm` - Clear bot DMs (only for the user who runs it)
 - `/move-message [message id]` - Move a message to the #get-help channel (mods only)
 - `!move-message` - Move a message to the #get-help channel (mods only, you will need to reply to the message you want to move)
 - `/bot-answer [message id]` - Answer a question in any text channel (mods only)

@@ -2,12 +2,10 @@
  * discord-intro-bot.ts
  *
  * TypeScript Discord bot that:
- * 1) On guildMemberAdd or when a mod runs /ping-intro [user], sends a DM to the user
- *    with a button to fill in their introduction or working-on information.
- * 2) When the user submits the modal, the bot posts a public message in #introductions
- *    or creates a PUBLIC thread in #working-on with their information.
- * 3) When the user completes BOTH forms, they receive the "Dodo Builder" role.
- * 4) Users can run /clear-dm to delete all DM messages from this bot.
+ * 1) On guildMemberAdd or when a mod runs /ping-intro [user], sends a public message in #introductions to the user
+ * 2) The user clicks the Start Introduction button which triggers an ephemeral reply
+ * 3) The ephemeral reply contains buttons to open Modals (forms) for Introduction and Projects
+ * 4) When the user completes BOTH forms, they receive the "Dodo Builder" role.
  *
  * Requirements / env vars (set in your environment):
  * - DISCORD_TOKEN          = Bot token
@@ -37,7 +35,7 @@ import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
 import { botTrapService } from './src/services/botTrap.js';
-import { DURATION } from './src/utils/constants.js';
+
 
 import {
     Client,
@@ -57,7 +55,7 @@ import {
     GuildMember,
     Events,
     ModalActionRowComponentBuilder,
-    DMChannel,
+
     ThreadChannel,
     EmbedBuilder,
 } from 'discord.js';
@@ -297,10 +295,6 @@ async function registerCommands() {
             ],
         },
         {
-            name: 'clear-dm',
-            description: 'Clear all DM messages from this bot for the current user.',
-        },
-        {
             name: 'ping',
             description: 'Check bot latency and performance metrics.',
             options: [
@@ -361,159 +355,48 @@ async function registerCommands() {
 /**
  * Clears all DM messages from the bot for a specific user
  */
-async function clearDMMessages(userId: string): Promise<{ success: boolean; message: string }> {
-    try {
-        const user = await client.users.fetch(userId);
-
-        // Try to get existing DM channel or create a new one
-        let dmChannel: DMChannel;
-        try {
-            dmChannel = await user.createDM();
-        } catch (error) {
-            return {
-                success: false,
-                message: 'Cannot access your DMs. Please make sure your DMs are open to server members.'
-            };
-        }
-
-        // Fetch messages from the DM channel
-        let messages;
-        try {
-            messages = await dmChannel.messages.fetch({ limit: 100 });
-        } catch (error) {
-            return {
-                success: false,
-                message: 'Failed to fetch messages from your DMs.'
-            };
-        }
-
-        // Filter messages sent by the bot
-        const botMessages = messages.filter(msg => msg.author.id === client.user?.id);
-
-        if (botMessages.size === 0) {
-            return {
-                success: true,
-                message: 'No messages from this bot were found in your DMs.'
-            };
-        }
-
-        // Delete messages in batches (Discord API allows bulk deletion of messages up to 2 weeks old)
-        const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
-        const recentMessages = botMessages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
-        const oldMessages = botMessages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
-
-        let deletedCount = 0;
-
-        // Bulk delete recent messages (less than 2 weeks old)
-        if (recentMessages.size > 0) {
-            try {
-                // DMChannel doesn't have bulkDelete, so we'll delete individually
-                for (const message of recentMessages.values()) {
-                    try {
-                        await message.delete();
-                        deletedCount++;
-                        // Small delay to avoid rate limits
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    } catch (individualError) {
-                        console.warn(`Failed to delete message ${message.id}:`, individualError);
-                    }
-                }
-            } catch (bulkError) {
-                console.warn('Could not bulk delete some messages, falling back to individual deletion:', bulkError);
-                // Fallback: delete messages individually
-                for (const message of recentMessages.values()) {
-                    try {
-                        await message.delete();
-                        deletedCount++;
-                        // Small delay to avoid rate limits
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    } catch (individualError) {
-                        console.warn(`Failed to delete message ${message.id}:`, individualError);
-                    }
-                }
-            }
-        }
-
-        // Delete older messages individually (more than 2 weeks old)
-        if (oldMessages.size > 0) {
-            for (const message of oldMessages.values()) {
-                try {
-                    await message.delete();
-                    deletedCount++;
-                    // Small delay to avoid rate limits
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (error) {
-                    console.warn(`Failed to delete old message ${message.id}:`, error);
-                }
-            }
-        }
-
-        return {
-            success: true,
-            message: `Successfully cleared ${deletedCount} messages from this bot in your DMs.`
-        };
-
-    } catch (error) {
-        console.error('Error clearing DM messages:', error);
-        return {
-            success: false,
-            message: 'An unexpected error occurred while trying to clear your DMs. Please try again later.'
-        };
-    }
-}
 
 /**
  * Automatically executes the ping-intro flow for new users when they join
  */
 async function autoPingIntroForNewUser(member: GuildMember) {
     try {
-        console.log(`Auto-triggering ping-intro for new user: ${member.user.tag} (delayed by ${DURATION.WELCOME_DELAY_MS}ms)`);
-
-        setTimeout(async () => {
-            try {
-                await startIntroFlow(member.guild.id, member.id);
-            } catch (innerError) {
-                console.error('Failed to execute delayed intro flow:', innerError);
-            }
-        }, DURATION.WELCOME_DELAY_MS);
-
+        console.log(`Auto-triggering ping-intro for new user: ${member.user.tag}`);
+        await startIntroFlow(member.guild.id, member.id);
     } catch (e) {
         console.error('Failed to auto-ping intro for new member:', e);
     }
 }
 
 /**
- * Starts the introduction flow by sending dismissible DM messages to the user
+ * Starts the introduction flow by posting a public message in the introductions channel with a Start button
  */
 async function startIntroFlow(guildId: string, targetUserId: string) {
     try {
-        // Fetch the user to send them a DM
-        const user = await client.users.fetch(targetUserId);
+        const guild = await client.guilds.fetch(guildId);
+        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID!) as TextChannel;
 
-        // Create buttons for both introduction and working-on forms
-        const introButton = new ButtonBuilder()
-            .setCustomId(`open_modal|intro|${targetUserId}|${guildId}|${INTRO_CHANNEL_ID}`)
-            .setLabel('Fill Introduction')
+        if (!channel) return;
+
+        const startButton = new ButtonBuilder()
+            .setCustomId(`start_intro_flow|${targetUserId}|${guildId}`)
+            .setLabel('Start Introduction')
             .setStyle(ButtonStyle.Primary);
 
-        const workingButton = new ButtonBuilder()
-            .setCustomId(`open_modal|working|${targetUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
-            .setLabel("What You're Working On")
-            .setStyle(ButtonStyle.Primary);
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(startButton);
 
-        const showcaseButton = new ButtonBuilder()
-            .setCustomId(`open_modal|showcase|${targetUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
-            .setLabel("Showcase Project")
-            .setStyle(ButtonStyle.Success);
+        const msg = await channel.send({
+            content: `Welcome <@${targetUserId}>! 👋 Click the button below to introduce yourself and get your Dodo Builder role.`,
+            components: [row]
+        });
 
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton, showcaseButton);
-
-        // Send welcome embed with interactive buttons in a single DM
-        const welcomeEmbed = buildWelcomeEmbed(targetUserId);
-        await user.send({ embeds: [welcomeEmbed], components: [row] });
+        // Automatically delete the message after 15 minutes to keep channel clean
+        setTimeout(() => {
+            msg.delete().catch(() => { });
+        }, 15 * 60 * 1000);
 
     } catch (e) {
-        console.error(`Failed to send DM to user ${targetUserId}:`, e);
+        console.error(`Failed to send intro ping for user ${targetUserId}:`, e);
     }
 }
 
@@ -541,17 +424,6 @@ async function checkAndAwardBadge(userId: string, guildId: string) {
             // Award the Dodo Builder role
             await member.roles.add(DODO_BUILDER_ROLE_ID!, 'Completed intro and project form');
 
-
-
-            // Send congratulations DM
-            try {
-                const user = await client.users.fetch(userId);
-                await user.send({
-                    content: `🎉 **Congratulations!** You've been awarded the **Dodo Builder** badge for completing your introduction and sharing your project! Keep building! 🚀`
-                });
-            } catch (dmError) {
-                console.warn(`Could not send congratulations DM to user ${userId}:`, dmError);
-            }
 
             console.log(`✅ Awarded Dodo Builder role to user ${userId}`);
         } catch (e) {
@@ -784,6 +656,40 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             const parts = bi.customId.split('|');
+
+            if (parts[0] === 'start_intro_flow') {
+                const targetUserId = parts[1];
+                const guildId = parts[2];
+
+                if (bi.user.id !== targetUserId) {
+                    await bi.reply({ content: 'This button is for someone else.', ephemeral: true });
+                    return;
+                }
+
+                // Create buttons for both introduction and working-on forms
+                const introButton = new ButtonBuilder()
+                    .setCustomId(`open_modal|intro|${targetUserId}|${guildId}|${INTRO_CHANNEL_ID}`)
+                    .setLabel('Fill Introduction')
+                    .setStyle(ButtonStyle.Primary);
+
+                const workingButton = new ButtonBuilder()
+                    .setCustomId(`open_modal|working|${targetUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
+                    .setLabel("What You're Working On")
+                    .setStyle(ButtonStyle.Primary);
+
+                const showcaseButton = new ButtonBuilder()
+                    .setCustomId(`open_modal|showcase|${targetUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
+                    .setLabel("Showcase Project")
+                    .setStyle(ButtonStyle.Success);
+
+                const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton, showcaseButton);
+
+                const welcomeEmbed = buildWelcomeEmbed(targetUserId);
+
+                await bi.reply({ embeds: [welcomeEmbed], components: [row], ephemeral: true });
+                return;
+            }
+
             if (parts[0] === 'open_modal') {
                 const flow = parts[1] as 'intro' | 'working' | 'showcase';
                 const targetUserId = parts[2];
@@ -898,22 +804,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     targets.push(cmd.user.id);
                 }
 
-                await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)... (sending them DMs)`, ephemeral: true });
+                await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)...`, ephemeral: true });
 
                 for (const targetId of targets) {
                     await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
                 }
-                return;
-            }
-
-            if (cmd.commandName === 'clear-dm') {
-                await cmd.deferReply({ ephemeral: true });
-
-                const result = await clearDMMessages(cmd.user.id);
-
-                await cmd.editReply({
-                    content: result.message
-                });
                 return;
             }
 
