@@ -17,7 +17,7 @@ export function createBaseEmbed(): EmbedBuilder {
 }
 
 /**
- * Welcome embed for new members (sent in DM)
+ * Welcome embed for new members (sent in public introductions channel)
  */
 export function createWelcomeEmbed(userId: string, guildName: string): EmbedBuilder {
     return createBaseEmbed()
