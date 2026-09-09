@@ -235,6 +235,10 @@ const client = new Client({
 // Track user completions: Map<userId, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>
 const userCompletions = new Map<string, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>();
 
+// Track active welcome messages: Map<userId, { messageId: string, channelId: string, timeout: NodeJS.Timeout }>
+const activeWelcomeMessages = new Map<string, { messageId: string; channelId: string; timeout: NodeJS.Timeout }>();
+const WELCOME_MESSAGE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // Cleanup interval: Remove entries older than 24 hours
 const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 const TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -378,6 +382,11 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
 
         if (!channel) return;
 
+        // If a welcome message is already active for this user, delete it first
+        if (activeWelcomeMessages.has(targetUserId)) {
+            await deleteWelcomeMessageForUser(guildId, targetUserId);
+        }
+
         const startButton = new ButtonBuilder()
             .setCustomId(`start_intro_flow|${targetUserId}|${guildId}`)
             .setLabel('Start Introduction')
@@ -390,14 +399,167 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
             components: [row]
         });
 
-        // Automatically delete the message after 15 minutes to keep channel clean
-        setTimeout(() => {
-            msg.delete().catch(() => { });
-        }, 15 * 60 * 1000);
+        // Automatically delete the message after 5 minutes to keep channel clean
+        const timeout = setTimeout(async () => {
+            try {
+                await msg.delete().catch(() => {});
+                console.log(`[Welcome] Auto-deleted welcome message after 5m timeout for user ${targetUserId} (${msg.id})`);
+            } catch (err) {
+                console.warn(`[Welcome] Failed to auto-delete welcome message on timeout:`, err);
+            } finally {
+                activeWelcomeMessages.delete(targetUserId);
+            }
+        }, WELCOME_MESSAGE_TTL);
+
+        activeWelcomeMessages.set(targetUserId, {
+            messageId: msg.id,
+            channelId: channel.id,
+            timeout,
+        });
 
     } catch (e) {
         console.error(`Failed to send intro ping for user ${targetUserId}:`, e);
     }
+}
+
+/**
+ * Helper to check if a message has the Start Introduction button component
+ */
+function hasIntroButton(msg: any, targetUserId?: string, guildId?: string): boolean {
+    if (!msg.components || !Array.isArray(msg.components)) return false;
+    for (const row of msg.components) {
+        if ('components' in row && Array.isArray(row.components)) {
+            for (const c of row.components) {
+                const customId = c?.customId;
+                if (typeof customId === 'string') {
+                    if (targetUserId) {
+                        if (customId === `start_intro_flow|${targetUserId}|${guildId}` || customId.startsWith(`start_intro_flow|${targetUserId}`)) {
+                            return true;
+                        }
+                    } else if (customId.startsWith('start_intro_flow')) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Deletes the welcome message for a specific user from the introductions channel
+ */
+async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string) {
+    try {
+        // 1. Check in-memory active welcome messages map first
+        const active = activeWelcomeMessages.get(targetUserId);
+        if (active) {
+            clearTimeout(active.timeout);
+            activeWelcomeMessages.delete(targetUserId);
+
+            try {
+                const channel = await client.channels.fetch(active.channelId).catch(() => null) as TextChannel | null;
+                if (channel) {
+                    const msg = await channel.messages.fetch(active.messageId).catch(() => null);
+                    if (msg) {
+                        await msg.delete().catch(() => {});
+                        console.log(`[Welcome] Deleted active welcome message for user ${targetUserId} (${active.messageId})`);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn(`[Welcome] Failed to delete active welcome message from map for user ${targetUserId}:`, err);
+            }
+        }
+
+        // 2. Fallback: Search in INTRO_CHANNEL_ID (useful across bot restarts)
+        if (!INTRO_CHANNEL_ID) return;
+        const channel = await client.channels.fetch(INTRO_CHANNEL_ID).catch(() => null) as TextChannel | null;
+        if (!channel) return;
+
+        const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+        if (!messages) return;
+
+        for (const [, msg] of messages) {
+            if (msg.author.id === client.user?.id) {
+                // Safety guard: Never delete embed messages (member introductions are embeds!)
+                if (msg.embeds.length > 0) continue;
+
+                const hasButtonForUser = hasIntroButton(msg, targetUserId, guildId);
+                const hasMentionForUser = msg.content.includes(`<@${targetUserId}>`) && msg.content.includes('Click the button below');
+
+                if (hasButtonForUser || hasMentionForUser) {
+                    await msg.delete().catch(err => console.warn(`[Welcome] Could not delete found welcome message:`, err));
+                    console.log(`[Welcome] Deleted welcome message for user ${targetUserId} found in channel (${msg.id})`);
+                    activeWelcomeMessages.delete(targetUserId);
+                    break;
+                }
+            }
+        }
+    } catch (e) {
+        console.error(`[Welcome] Error while deleting welcome message for user ${targetUserId}:`, e);
+    }
+}
+
+/**
+ * Cleans up old welcome messages in the introductions channel (older than 5 minutes)
+ */
+async function cleanupOldWelcomeMessages(client: Client) {
+    try {
+        if (!GUILD_ID || !INTRO_CHANNEL_ID) return;
+        const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+        if (!guild) return;
+
+        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null) as TextChannel | null;
+        if (!channel) return;
+
+        const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+        if (!messages) return;
+
+        const now = Date.now();
+
+        for (const [, msg] of messages) {
+            // Check if message is from the bot
+            if (msg.author.id === client.user?.id) {
+                // Safety guard: Never delete embed messages (member introductions are embeds!)
+                if (msg.embeds.length > 0) continue;
+
+                // Check if it's a welcome message (via button customId or text content)
+                const isWelcomeMessage =
+                    hasIntroButton(msg) ||
+                    (msg.content.includes('Welcome') && msg.content.includes('Click the button below'));
+
+                if (isWelcomeMessage) {
+                    // Check if it's older than 5 minutes
+                    if (now - msg.createdTimestamp > WELCOME_MESSAGE_TTL) {
+                        try {
+                            await msg.delete().catch(() => {});
+                            console.log(`[Cleanup] Deleted old welcome message ${msg.id} (age: ${Math.round((now - msg.createdTimestamp) / 1000)}s)`);
+                        } catch (delError) {
+                            console.warn(`[Cleanup] Failed to delete welcome message ${msg.id}:`, delError);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error during welcome message cleanup:', e);
+    }
+}
+
+/**
+ * Starts a background interval to clean up old welcome messages in the introductions channel
+ */
+function startWelcomeMessageCleanup(client: Client) {
+    // Run immediately on startup to clean up any leftover welcome messages
+    cleanupOldWelcomeMessages(client).catch(err => {
+        console.error('Initial welcome message cleanup failed:', err);
+    });
+
+    // Check every minute for expired welcome messages
+    setInterval(async () => {
+        await cleanupOldWelcomeMessages(client);
+    }, 60 * 1000);
 }
 
 /**
@@ -411,6 +573,9 @@ async function checkAndAwardBadge(userId: string, guildId: string) {
     const completed = hasIntro && hasProject;
 
     if (completed) {
+        // Also ensure any leftover welcome message is deleted
+        await deleteWelcomeMessageForUser(guildId, userId);
+
         try {
             const guild = await client.guilds.fetch(guildId);
             const member = await guild.members.fetch(userId);
@@ -479,6 +644,9 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             // Create and send the public introduction embed
             const introEmbed = buildIntroEmbed(name, targetUserId, about);
             await destChannel.send({ embeds: [introEmbed] });
+
+            // Delete the welcome message for this user now that introduction is completed
+            await deleteWelcomeMessageForUser(guildId, targetUserId);
 
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
@@ -593,6 +761,9 @@ client.once(Events.ClientReady, async () => {
     await botTrapService.initialize(client);
 
     await registerCommands();
+    
+    // Start background cleanup jobs
+    startWelcomeMessageCleanup(client);
 });
 
 // Main interaction handler for buttons, modals, and commands
