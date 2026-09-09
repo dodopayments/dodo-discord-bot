@@ -35,6 +35,7 @@ import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
 import { botTrapService } from './src/services/botTrap.js';
+import { DURATION } from './src/utils/constants.js';
 
 
 import {
@@ -237,7 +238,7 @@ const userCompletions = new Map<string, { completions: Set<'intro' | 'working' |
 
 // Track active welcome messages: Map<userId, { messageId: string, channelId: string, timeout: NodeJS.Timeout }>
 const activeWelcomeMessages = new Map<string, { messageId: string; channelId: string; timeout: NodeJS.Timeout }>();
-const WELCOME_MESSAGE_TTL = 5 * 60 * 1000; // 5 minutes
+const WELCOME_MESSAGE_TTL = DURATION.WELCOME_MESSAGE_DELETE_DELAY_MINUTES * 60 * 1000;
 
 // Cleanup interval: Remove entries older than 24 hours
 const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -399,11 +400,11 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
             components: [row]
         });
 
-        // Automatically delete the message after 5 minutes to keep channel clean
+        // Automatically delete the message after configured delay to keep channel clean
         const timeout = setTimeout(async () => {
             try {
                 await msg.delete().catch(() => {});
-                console.log(`[Welcome] Auto-deleted welcome message after 5m timeout for user ${targetUserId} (${msg.id})`);
+                console.log(`[Welcome] Auto-deleted welcome message after ${DURATION.WELCOME_MESSAGE_DELETE_DELAY_MINUTES}m timeout for user ${targetUserId} (${msg.id})`);
             } catch (err) {
                 console.warn(`[Welcome] Failed to auto-delete welcome message on timeout:`, err);
             } finally {

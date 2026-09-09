@@ -59,6 +59,9 @@ export const EMOJI = {
 
 // ==================== DURATIONS ====================
 export const DURATION = {
+    // Welcome message auto-deletion (in minutes)
+    WELCOME_MESSAGE_DELETE_DELAY_MINUTES: 5,
+
     // Data retention (in days)
     USER_PROGRESS_TTL: 90,
     ANALYTICS_TTL: 365,
