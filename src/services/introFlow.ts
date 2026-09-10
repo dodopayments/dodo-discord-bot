@@ -330,7 +330,7 @@ class IntroFlowService {
                     const channel = await this.client.channels.fetch(active.channelId).catch(() => null);
                     if (channel && channel.isTextBased() && 'messages' in channel) {
                         const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
-                        if (msg) {
+                        if (msg && msg.author.id === this.client.user?.id && msg.embeds.length === 0 && this.hasIntroButton(msg, targetUserId)) {
                             await msg.delete().catch(() => { });
                             console.log(`[Welcome] Deleted active welcome message for user ${targetUserId} (${active.messageId})`);
                             return;
@@ -387,7 +387,7 @@ class IntroFlowService {
                         const channel = await this.client.channels.fetch(active.channelId).catch(() => null);
                         if (channel && channel.isTextBased() && 'messages' in channel) {
                             const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
-                            if (msg && msg.embeds.length === 0 && this.hasIntroButton(msg)) {
+                            if (msg && msg.author.id === this.client.user?.id && msg.embeds.length === 0 && this.hasIntroButton(msg)) {
                                 await msg.delete().catch(() => { });
                                 console.log(`[Cleanup] Deleted expired active welcome message for user ${uid} (${msg.id})`);
                             }
