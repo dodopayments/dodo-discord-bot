@@ -18,7 +18,6 @@
  *
  * Notes:
  * - Keep Server Members Intent enabled in Developer Portal.
- * - Users must have DMs enabled from server members for this to work.
  * - Ensure the bot has permission to Create Public Threads, Send Messages, Manage Threads,
  *   Add Members to Threads, and Manage Roles.
  * - The bot's role must be HIGHER than the Dodo Builder role in the role hierarchy.
@@ -56,7 +55,7 @@ import {
     GuildMember,
     Events,
     ModalActionRowComponentBuilder,
-
+    Message,
     ThreadChannel,
     EmbedBuilder,
 } from 'discord.js';
@@ -191,7 +190,7 @@ function buildShowcaseEmbed(product: string, targetUserId: string, about: string
 
 
 
-// Welcome message embed builder for DMs
+// Welcome message embed builder for intro flow
 function buildWelcomeEmbed(userId: string): EmbedBuilder {
 
     const description = [
@@ -226,9 +225,8 @@ const client = new Client({
         GatewayIntentBits.GuildMembers, // Required for guildMemberAdd event
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages, // Added for DM management
     ],
-    partials: [Partials.Channel, Partials.Message],
+    partials: [Partials.Message],
 });
 
 
@@ -236,8 +234,8 @@ const client = new Client({
 // Track user completions: Map<userId, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>
 const userCompletions = new Map<string, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>();
 
-// Track active welcome messages: Map<userId, { messageId: string, channelId: string, timeout: NodeJS.Timeout }>
-const activeWelcomeMessages = new Map<string, { messageId: string; channelId: string; timeout: NodeJS.Timeout }>();
+// Track active welcome messages: Map<userId, { messageId: string, channelId: string }>
+const activeWelcomeMessages = new Map<string, { messageId: string; channelId: string }>();
 const WELCOME_MESSAGE_TTL = DURATION.WELCOME_MESSAGE_DELETE_DELAY_MINUTES * 60 * 1000;
 
 // Cleanup interval: Remove entries older than 24 hours
@@ -358,18 +356,34 @@ async function registerCommands() {
 }
 
 /**
- * Clears all DM messages from the bot for a specific user
- */
-
-/**
- * Automatically executes the ping-intro flow for new users when they join
+ * Automatically executes the ping-intro flow for new users when they join (after a delay to prevent raid spam)
  */
 async function autoPingIntroForNewUser(member: GuildMember) {
     try {
-        console.log(`Auto-triggering ping-intro for new user: ${member.user.tag}`);
-        await startIntroFlow(member.guild.id, member.id);
+        console.log(`Scheduling intro ping for new user: ${member.user.tag} (delayed by ${DURATION.WELCOME_DELAY_MS / 1000}s)`);
+
+        setTimeout(async () => {
+            try {
+                // Verify member is still in the guild and not removed by moderation/bot-trap
+                const currentMember = await member.guild.members.fetch(member.id).catch(() => null);
+                if (!currentMember) {
+                    console.log(`User ${member.user.tag} (${member.id}) left or was removed before intro ping; skipping.`);
+                    return;
+                }
+
+                // If still pending membership screening, do not ping yet
+                if (currentMember.pending) {
+                    return;
+                }
+
+                await startIntroFlow(member.guild.id, member.id);
+            } catch (innerError) {
+                console.error('Failed to execute delayed intro flow:', innerError);
+            }
+        }, DURATION.WELCOME_DELAY_MS);
+
     } catch (e) {
-        console.error('Failed to auto-ping intro for new member:', e);
+        console.error('Failed to schedule auto-ping intro for new member:', e);
     }
 }
 
@@ -378,10 +392,17 @@ async function autoPingIntroForNewUser(member: GuildMember) {
  */
 async function startIntroFlow(guildId: string, targetUserId: string) {
     try {
-        const guild = await client.guilds.fetch(guildId);
-        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID!) as TextChannel;
+        const guild = await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+            console.error(`Guild ${guildId} not found`);
+            return;
+        }
 
-        if (!channel) return;
+        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID!).catch(() => null);
+        if (!channel || !channel.isTextBased() || !('send' in channel)) {
+            console.error(`INTRO_CHANNEL_ID (${INTRO_CHANNEL_ID}) is not a valid text-based channel`);
+            return;
+        }
 
         // If a welcome message is already active for this user, delete it first
         if (activeWelcomeMessages.has(targetUserId)) {
@@ -395,27 +416,14 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(startButton);
 
-        const msg = await channel.send({
+        const msg = await (channel as TextChannel).send({
             content: `Welcome <@${targetUserId}>! 👋 Click the button below to introduce yourself and get your Dodo Builder role.`,
             components: [row]
         });
 
-        // Automatically delete the message after configured delay to keep channel clean
-        const timeout = setTimeout(async () => {
-            try {
-                await msg.delete().catch(() => {});
-                console.log(`[Welcome] Auto-deleted welcome message after ${DURATION.WELCOME_MESSAGE_DELETE_DELAY_MINUTES}m timeout for user ${targetUserId} (${msg.id})`);
-            } catch (err) {
-                console.warn(`[Welcome] Failed to auto-delete welcome message on timeout:`, err);
-            } finally {
-                activeWelcomeMessages.delete(targetUserId);
-            }
-        }, WELCOME_MESSAGE_TTL);
-
         activeWelcomeMessages.set(targetUserId, {
             messageId: msg.id,
             channelId: channel.id,
-            timeout,
         });
 
     } catch (e) {
@@ -426,18 +434,18 @@ async function startIntroFlow(guildId: string, targetUserId: string) {
 /**
  * Helper to check if a message has the Start Introduction button component
  */
-function hasIntroButton(msg: any, targetUserId?: string, guildId?: string): boolean {
+function hasIntroButton(msg: Message, targetUserId?: string): boolean {
     if (!msg.components || !Array.isArray(msg.components)) return false;
     for (const row of msg.components) {
         if ('components' in row && Array.isArray(row.components)) {
             for (const c of row.components) {
-                const customId = c?.customId;
+                const customId = 'customId' in c ? c.customId : undefined;
                 if (typeof customId === 'string') {
                     if (targetUserId) {
-                        if (customId === `start_intro_flow|${targetUserId}|${guildId}` || customId.startsWith(`start_intro_flow|${targetUserId}`)) {
+                        if (customId.startsWith(`start_intro_flow|${targetUserId}|`)) {
                             return true;
                         }
-                    } else if (customId.startsWith('start_intro_flow')) {
+                    } else if (customId.startsWith('start_intro_flow|') || customId === 'start_intro_flow') {
                         return true;
                     }
                 }
@@ -455,13 +463,12 @@ async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string
         // 1. Check in-memory active welcome messages map first
         const active = activeWelcomeMessages.get(targetUserId);
         if (active) {
-            clearTimeout(active.timeout);
             activeWelcomeMessages.delete(targetUserId);
 
             try {
-                const channel = await client.channels.fetch(active.channelId).catch(() => null) as TextChannel | null;
-                if (channel) {
-                    const msg = await channel.messages.fetch(active.messageId).catch(() => null);
+                const channel = await client.channels.fetch(active.channelId).catch(() => null);
+                if (channel && channel.isTextBased() && 'messages' in channel) {
+                    const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
                     if (msg) {
                         await msg.delete().catch(() => {});
                         console.log(`[Welcome] Deleted active welcome message for user ${targetUserId} (${active.messageId})`);
@@ -475,10 +482,13 @@ async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string
 
         // 2. Fallback: Search in INTRO_CHANNEL_ID (useful across bot restarts)
         if (!INTRO_CHANNEL_ID) return;
-        const channel = await client.channels.fetch(INTRO_CHANNEL_ID).catch(() => null) as TextChannel | null;
-        if (!channel) return;
+        const guild = await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) return;
 
-        const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
+        if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
+
+        const messages = await (channel as TextChannel).messages.fetch({ limit: 50 }).catch(() => null);
         if (!messages) return;
 
         for (const [, msg] of messages) {
@@ -486,10 +496,7 @@ async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string
                 // Safety guard: Never delete embed messages (member introductions are embeds!)
                 if (msg.embeds.length > 0) continue;
 
-                const hasButtonForUser = hasIntroButton(msg, targetUserId, guildId);
-                const hasMentionForUser = msg.content.includes(`<@${targetUserId}>`) && msg.content.includes('Click the button below');
-
-                if (hasButtonForUser || hasMentionForUser) {
+                if (hasIntroButton(msg, targetUserId)) {
                     await msg.delete().catch(err => console.warn(`[Welcome] Could not delete found welcome message:`, err));
                     console.log(`[Welcome] Deleted welcome message for user ${targetUserId} found in channel (${msg.id})`);
                     activeWelcomeMessages.delete(targetUserId);
@@ -503,7 +510,7 @@ async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string
 }
 
 /**
- * Cleans up old welcome messages in the introductions channel (older than 5 minutes)
+ * Cleans up old welcome messages in the introductions channel (older than configured TTL)
  */
 async function cleanupOldWelcomeMessages(client: Client) {
     try {
@@ -511,10 +518,10 @@ async function cleanupOldWelcomeMessages(client: Client) {
         const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
         if (!guild) return;
 
-        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null) as TextChannel | null;
-        if (!channel) return;
+        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
+        if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
 
-        const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+        const messages = await (channel as TextChannel).messages.fetch({ limit: 100 }).catch(() => null);
         if (!messages) return;
 
         const now = Date.now();
@@ -525,17 +532,19 @@ async function cleanupOldWelcomeMessages(client: Client) {
                 // Safety guard: Never delete embed messages (member introductions are embeds!)
                 if (msg.embeds.length > 0) continue;
 
-                // Check if it's a welcome message (via button customId or text content)
-                const isWelcomeMessage =
-                    hasIntroButton(msg) ||
-                    (msg.content.includes('Welcome') && msg.content.includes('Click the button below'));
-
-                if (isWelcomeMessage) {
-                    // Check if it's older than 5 minutes
+                // Check if it's a welcome message via button customId
+                if (hasIntroButton(msg)) {
+                    // Check if it's older than configured TTL
                     if (now - msg.createdTimestamp > WELCOME_MESSAGE_TTL) {
                         try {
                             await msg.delete().catch(() => {});
                             console.log(`[Cleanup] Deleted old welcome message ${msg.id} (age: ${Math.round((now - msg.createdTimestamp) / 1000)}s)`);
+
+                            for (const [uid, active] of activeWelcomeMessages.entries()) {
+                                if (active.messageId === msg.id) {
+                                    activeWelcomeMessages.delete(uid);
+                                }
+                            }
                         } catch (delError) {
                             console.warn(`[Cleanup] Failed to delete welcome message ${msg.id}:`, delError);
                         }
@@ -548,6 +557,8 @@ async function cleanupOldWelcomeMessages(client: Client) {
     }
 }
 
+let welcomeCleanupInterval: NodeJS.Timeout | null = null;
+
 /**
  * Starts a background interval to clean up old welcome messages in the introductions channel
  */
@@ -557,8 +568,12 @@ function startWelcomeMessageCleanup(client: Client) {
         console.error('Initial welcome message cleanup failed:', err);
     });
 
+    if (welcomeCleanupInterval) {
+        clearInterval(welcomeCleanupInterval);
+    }
+
     // Check every minute for expired welcome messages
-    setInterval(async () => {
+    welcomeCleanupInterval = setInterval(async () => {
         await cleanupOldWelcomeMessages(client);
     }, 60 * 1000);
 }
@@ -645,9 +660,6 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction) {
             // Create and send the public introduction embed
             const introEmbed = buildIntroEmbed(name, targetUserId, about);
             await destChannel.send({ embeds: [introEmbed] });
-
-            // Delete the welcome message for this user now that introduction is completed
-            await deleteWelcomeMessageForUser(guildId, targetUserId);
 
             // Check completion status from memory
             const userData = userCompletions.get(targetUserId);
@@ -831,32 +843,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             if (parts[0] === 'start_intro_flow') {
                 const targetUserId = parts[1];
-                const guildId = parts[2];
+                const guildId = parts[2] || bi.guildId || GUILD_ID!;
 
-                if (bi.user.id !== targetUserId) {
+                if (targetUserId && bi.user.id !== targetUserId) {
                     await bi.reply({ content: 'This button is for someone else.', ephemeral: true });
                     return;
                 }
 
+                const effectiveUserId = targetUserId || bi.user.id;
+
                 // Create buttons for both introduction and working-on forms
                 const introButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|intro|${targetUserId}|${guildId}|${INTRO_CHANNEL_ID}`)
+                    .setCustomId(`open_modal|intro|${effectiveUserId}|${guildId}|${INTRO_CHANNEL_ID}`)
                     .setLabel('Fill Introduction')
                     .setStyle(ButtonStyle.Primary);
 
                 const workingButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|working|${targetUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
+                    .setCustomId(`open_modal|working|${effectiveUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
                     .setLabel("What You're Working On")
                     .setStyle(ButtonStyle.Primary);
 
                 const showcaseButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|showcase|${targetUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
+                    .setCustomId(`open_modal|showcase|${effectiveUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
                     .setLabel("Showcase Project")
                     .setStyle(ButtonStyle.Success);
 
                 const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton, showcaseButton);
 
-                const welcomeEmbed = buildWelcomeEmbed(targetUserId);
+                const welcomeEmbed = buildWelcomeEmbed(effectiveUserId);
 
                 await bi.reply({ embeds: [welcomeEmbed], components: [row], ephemeral: true });
                 return;
@@ -1176,10 +1190,10 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
             } catch (roleError) {
                 console.error(`Failed to assign Member role to ${member.user.tag}:`, roleError);
             }
-        }
 
-        // Automatically trigger ping-intro flow for new users
-        await autoPingIntroForNewUser(member);
+            // Automatically trigger ping-intro flow for new users who are not pending screening
+            await autoPingIntroForNewUser(member);
+        }
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
     }
@@ -1199,6 +1213,9 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
             } catch (roleError) {
                 console.error(`Failed to assign Member role to ${newMember.user.tag}:`, roleError);
             }
+
+            // Trigger intro flow now that member has passed screening
+            await autoPingIntroForNewUser(newMember);
         }
     } catch (e) {
         console.error('Failed to handle GuildMemberUpdate:', e);
