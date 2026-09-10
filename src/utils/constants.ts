@@ -81,6 +81,9 @@ export const LIMITS = {
     MAX_PROJECT_NAME_LENGTH: 100,
     MAX_THREAD_TITLE_LENGTH: 100,
 
+    // Intro leftover scan limit
+    WELCOME_MESSAGE_FETCH_LIMIT: 20,
+
     // Pagination
     LEADERBOARD_PAGE_SIZE: 10,
     STATS_DEFAULT_DAYS: 7,

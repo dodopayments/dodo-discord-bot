@@ -516,6 +516,17 @@ client.on(Events.MessageDelete, async (message) => {
 
 
 
+// Graceful shutdown handlers
+const handleShutdown = async (signal: string) => {
+    console.log(`Received ${signal}, shutting down gracefully...`);
+    introFlowService.stopCleanup();
+    await client.destroy();
+    process.exit(0);
+};
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+
 // Login to Discord with bot token
 client.login(DISCORD_TOKEN).catch(err => {
     console.error('Failed to login:', err);
