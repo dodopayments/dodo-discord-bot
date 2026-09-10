@@ -52,7 +52,6 @@ npm start      # Production
 | `GET_HELP_CHANNEL` | Get help channel ID | ✅ |
 | `OTHER_TAG_HELP_ID` | Other tag ID for get help | ✅ |
 | `N8N_PRODUCTION_URL` | N8N Webhook URL | ❌ |
-| `DELETED_MESSAGES_CHANNEL` | Deleted messages channel ID | ✅ |
 
 ## Commands
 
