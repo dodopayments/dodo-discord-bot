@@ -16,7 +16,7 @@ import {
     EmbedBuilder,
 } from 'discord.js';
 import dotenv from 'dotenv';
-import { DURATION } from '../utils/constants.js';
+import { DURATION, LIMITS } from '../utils/constants.js';
 
 dotenv.config();
 
@@ -301,10 +301,10 @@ class IntroFlowService {
                     const customId = 'customId' in c ? c.customId : undefined;
                     if (typeof customId === 'string') {
                         if (targetUserId) {
-                            if (customId.startsWith(`start_intro_flow|${targetUserId}|`) || customId === `start_intro_flow|${targetUserId}`) {
+                            if (customId.startsWith(`start_intro_flow|${targetUserId}|`)) {
                                 return true;
                             }
-                        } else if (customId.startsWith('start_intro_flow|') || customId === 'start_intro_flow') {
+                        } else if (customId.startsWith('start_intro_flow|')) {
                             return true;
                         }
                     }
@@ -331,7 +331,7 @@ class IntroFlowService {
                     if (channel && channel.isTextBased() && 'messages' in channel) {
                         const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
                         if (msg) {
-                            await msg.delete().catch(() => {});
+                            await msg.delete().catch(() => { });
                             console.log(`[Welcome] Deleted active welcome message for user ${targetUserId} (${active.messageId})`);
                             return;
                         }
@@ -349,7 +349,7 @@ class IntroFlowService {
             const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
             if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
 
-            const messages = await (channel as TextChannel).messages.fetch({ limit: 50 }).catch(() => null);
+            const messages = await (channel as TextChannel).messages.fetch({ limit: LIMITS.WELCOME_MESSAGE_FETCH_LIMIT }).catch(() => null);
             if (!messages) return;
 
             for (const [, msg] of messages) {
@@ -388,7 +388,7 @@ class IntroFlowService {
                         if (channel && channel.isTextBased() && 'messages' in channel) {
                             const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
                             if (msg && msg.embeds.length === 0 && this.hasIntroButton(msg)) {
-                                await msg.delete().catch(() => {});
+                                await msg.delete().catch(() => { });
                                 console.log(`[Cleanup] Deleted expired active welcome message for user ${uid} (${msg.id})`);
                             }
                         }
@@ -398,14 +398,14 @@ class IntroFlowService {
                 }
             }
 
-            // 2. Fallback channel sweep for welcome messages (e.g. from previous bot sessions)
+            // 2. Fallback channel sweep for welcome messages (check last n messages max defined in constants)
             const guild = await this.client.guilds.fetch(GUILD_ID).catch(() => null);
             if (!guild) return;
 
             const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
             if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
 
-            const messages = await (channel as TextChannel).messages.fetch({ limit: 100 }).catch(() => null);
+            const messages = await (channel as TextChannel).messages.fetch({ limit: LIMITS.WELCOME_MESSAGE_FETCH_LIMIT }).catch(() => null);
             if (!messages) return;
 
             for (const [, msg] of messages) {
@@ -417,7 +417,7 @@ class IntroFlowService {
                     if (this.hasIntroButton(msg)) {
                         if (now - msg.createdTimestamp > this.welcomeMessageTTL) {
                             try {
-                                await msg.delete().catch(() => {});
+                                await msg.delete().catch(() => { });
                                 console.log(`[Cleanup] Deleted old welcome message ${msg.id} (age: ${Math.round((now - msg.createdTimestamp) / 1000)}s)`);
 
                                 for (const [uid, active] of this.activeWelcomeMessages.entries()) {
