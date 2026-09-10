@@ -34,7 +34,7 @@ import { moderationService } from './src/services/moderationService.js';
 import { supportBotService } from './src/services/supportBotService.js';
 import { moveQuestionService } from './src/services/moveQuestionService.js';
 import { botTrapService } from './src/services/botTrap.js';
-import { DURATION } from './src/utils/constants.js';
+import { introFlowService } from './src/services/introFlow.js';
 
 
 import {
@@ -46,16 +46,9 @@ import {
     Routes,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
-    ModalSubmitInteraction,
     ButtonInteraction,
     GuildMember,
     Events,
-    ModalActionRowComponentBuilder,
-    Message,
     ThreadChannel,
     EmbedBuilder,
 } from 'discord.js';
@@ -87,137 +80,6 @@ if (!DISCORD_TOKEN || !GUILD_ID || !CLIENT_ID || !INTRO_CHANNEL_ID || !WORKING_O
     process.exit(1);
 }
 
-// Server post: Introduction embed (uses user mention and rich layout)
-function buildIntroEmbed(name: string, targetUserId: string, about: string): EmbedBuilder {
-    const introVariations = [
-        {
-            title: `Welcome to the Dodo family, ${name}!`,
-            section: `About ${name}:`,
-            footer: "Ready to build something amazing? Let's go!",
-        },
-        {
-            title: `Hey there, ${name}!`,
-            section: `Get to know ${name}:`,
-            footer: "Welcome to our community of builders and creators!",
-        },
-        {
-            title: `A warm welcome to ${name}!`,
-            section: `Meet ${name}:`,
-            footer: "Excited to see what you'll build with us!",
-        },
-        {
-            title: `Welcome aboard, ${name}!`,
-            section: `About ${name}:`,
-            footer: "Great to have another builder in our community! Let's create something awesome together!",
-        },
-        {
-            title: `Welcome to Dodo Payments, ${name}!`,
-            section: `Here's what ${name} shared:`,
-            footer: "We're thrilled to have you join our journey of building great products!",
-        },
-    ];
-
-    const randomIndex = Math.floor(Math.random() * introVariations.length);
-    const v = introVariations[randomIndex];
-
-    const description = [
-        `${v.title} <@${targetUserId}>`,
-        '',
-        `__**${v.section}**__`,
-        `> ${about}`,
-    ].join('\n');
-
-    return new EmbedBuilder()
-        .setColor(0x2b6cb0)
-        .setTitle('New Introduction')
-        .setDescription(description)
-        .setFooter({ text: v.footer });
-}
-
-// Server post: Working-on embed
-function buildWorkingOnEmbed(product: string, targetUserId: string, about: string): EmbedBuilder {
-    const workingVariations = [
-        { title: `New project: ${product}`, section: 'About this project:', footer: 'Join the discussion here!' },
-        { title: `Building: ${product}`, section: 'Project details:', footer: 'Share your thoughts in the thread!' },
-        { title: `Work in progress: ${product}`, section: "What it's about:", footer: "Let's discuss this together!" },
-        { title: `Project spotlight: ${product}`, section: 'Project overview:', footer: 'Join the conversation!' },
-        { title: `Fresh build: ${product}`, section: 'Here are the details:', footer: 'Share your feedback here!' },
-    ];
-
-    const randomIndex = Math.floor(Math.random() * workingVariations.length);
-    const v = workingVariations[randomIndex];
-
-    const description = [
-        `${v.title} <@${targetUserId}>`,
-        '',
-        `__${v.section}__`,
-        `> ${about}`,
-    ].join('\n');
-
-    return new EmbedBuilder()
-        .setColor(0x2f855a)
-        .setTitle('New Project')
-        .setDescription(description)
-        .setFooter({ text: v.footer });
-}
-
-// Server post: Showcase embed
-function buildShowcaseEmbed(product: string, targetUserId: string, about: string): EmbedBuilder {
-    const showcaseVariations = [
-        { title: `Showcase: ${product}`, section: 'What I built:', footer: 'Check it out!' },
-        { title: `Deployed: ${product}`, section: 'Project details:', footer: 'Share your feedback!' },
-        { title: `Live Project: ${product}`, section: "What it does:", footer: "Let's discuss!" },
-        { title: `Showcasing: ${product}`, section: 'About the project:', footer: 'Amazing work!' },
-        { title: `Launched: ${product}`, section: 'Here is what it is:', footer: 'Congrats on the launch!' },
-    ];
-
-    const randomIndex = Math.floor(Math.random() * showcaseVariations.length);
-    const v = showcaseVariations[randomIndex];
-
-    const description = [
-        `${v.title} <@${targetUserId}>`,
-        '',
-        `__${v.section}__`,
-        `> ${about}`,
-    ].join('\n');
-
-    return new EmbedBuilder()
-        .setColor(0x805ad5) // Purple for showcase
-        .setTitle('Project Showcase')
-        .setDescription(description)
-        .setFooter({ text: v.footer });
-}
-
-
-
-// Welcome message embed builder for intro flow
-function buildWelcomeEmbed(userId: string): EmbedBuilder {
-
-    const description = [
-        `Hey <@${userId}> 👋`,
-        '',
-        "Welcome to **Dodo Payments**! We're a community of builders shipping great products, and we're stoked to have you here.",
-        '',
-        '**🚀 Get Started in 60 Seconds**',
-        '',
-        "We'd love to know who you are and what you're building. Use the buttons below to:",
-        '',
-        '1.  **Introduce Yourself** - Tell us a bit about you.',
-        "2.  **Share Your Project** - Show us what you're working on OR showcase a finished project! We'll create a dedicated thread for your project so others can follow along and support you.",
-        '',
-        '🏆 **Pro Tip:** Complete the introduction and ONE of the project forms (Working On or Showcase) to instantly earn the **Dodo Builder** role!',
-        '',
-        `*Note: Your answers will be posted publicly in #introductions, #working-on, or the showcase channel.*`,
-        '',
-        "Let's build something amazing together! 🚀"
-    ].join('\n');
-
-    return new EmbedBuilder()
-        .setColor(0x2b6cb0)
-        .setTitle('Welcome to Dodo Payments!')
-        .setDescription(description);
-}
-
 // Initialize Discord client with required intents
 const client = new Client({
     intents: [
@@ -228,28 +90,6 @@ const client = new Client({
     ],
     partials: [Partials.Message],
 });
-
-
-
-// Track user completions: Map<userId, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>
-const userCompletions = new Map<string, { completions: Set<'intro' | 'working' | 'showcase'>, timestamp: number }>();
-
-// Track active welcome messages: Map<userId, { messageId: string, channelId: string }>
-const activeWelcomeMessages = new Map<string, { messageId: string; channelId: string }>();
-const WELCOME_MESSAGE_TTL = DURATION.WELCOME_MESSAGE_DELETE_DELAY_MINUTES * 60 * 1000;
-
-// Cleanup interval: Remove entries older than 24 hours
-const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
-const TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-setInterval(() => {
-    const now = Date.now();
-    for (const [userId, data] of userCompletions.entries()) {
-        if (now - data.timestamp > TTL) {
-            userCompletions.delete(userId);
-        }
-    }
-}, CLEANUP_INTERVAL);
 
 // Track bot start time for uptime calculation
 const botStartTime = Date.now();
@@ -355,428 +195,15 @@ async function registerCommands() {
     }
 }
 
-/**
- * Automatically executes the ping-intro flow for new users when they join (after a delay to prevent raid spam)
- */
-async function autoPingIntroForNewUser(member: GuildMember) {
-    try {
-        console.log(`Scheduling intro ping for new user: ${member.user.tag} (delayed by ${DURATION.WELCOME_DELAY_MS / 1000}s)`);
-
-        setTimeout(async () => {
-            try {
-                // Verify member is still in the guild and not removed by moderation/bot-trap
-                const currentMember = await member.guild.members.fetch(member.id).catch(() => null);
-                if (!currentMember) {
-                    console.log(`User ${member.user.tag} (${member.id}) left or was removed before intro ping; skipping.`);
-                    return;
-                }
-
-                // If still pending membership screening, do not ping yet
-                if (currentMember.pending) {
-                    return;
-                }
-
-                await startIntroFlow(member.guild.id, member.id);
-            } catch (innerError) {
-                console.error('Failed to execute delayed intro flow:', innerError);
-            }
-        }, DURATION.WELCOME_DELAY_MS);
-
-    } catch (e) {
-        console.error('Failed to schedule auto-ping intro for new member:', e);
-    }
-}
-
-/**
- * Starts the introduction flow by posting a public message in the introductions channel with a Start button
- */
-async function startIntroFlow(guildId: string, targetUserId: string) {
-    try {
-        const guild = await client.guilds.fetch(guildId).catch(() => null);
-        if (!guild) {
-            console.error(`Guild ${guildId} not found`);
-            return;
-        }
-
-        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID!).catch(() => null);
-        if (!channel || !channel.isTextBased() || !('send' in channel)) {
-            console.error(`INTRO_CHANNEL_ID (${INTRO_CHANNEL_ID}) is not a valid text-based channel`);
-            return;
-        }
-
-        // If a welcome message is already active for this user, delete it first
-        if (activeWelcomeMessages.has(targetUserId)) {
-            await deleteWelcomeMessageForUser(guildId, targetUserId);
-        }
-
-        const startButton = new ButtonBuilder()
-            .setCustomId(`start_intro_flow|${targetUserId}|${guildId}`)
-            .setLabel('Start Introduction')
-            .setStyle(ButtonStyle.Primary);
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(startButton);
-
-        const msg = await (channel as TextChannel).send({
-            content: `Welcome <@${targetUserId}>! 👋 Click the button below to introduce yourself and get your Dodo Builder role.`,
-            components: [row]
-        });
-
-        activeWelcomeMessages.set(targetUserId, {
-            messageId: msg.id,
-            channelId: channel.id,
-        });
-
-    } catch (e) {
-        console.error(`Failed to send intro ping for user ${targetUserId}:`, e);
-    }
-}
-
-/**
- * Helper to check if a message has the Start Introduction button component
- */
-function hasIntroButton(msg: Message, targetUserId?: string): boolean {
-    if (!msg.components || !Array.isArray(msg.components)) return false;
-    for (const row of msg.components) {
-        if ('components' in row && Array.isArray(row.components)) {
-            for (const c of row.components) {
-                const customId = 'customId' in c ? c.customId : undefined;
-                if (typeof customId === 'string') {
-                    if (targetUserId) {
-                        if (customId.startsWith(`start_intro_flow|${targetUserId}|`)) {
-                            return true;
-                        }
-                    } else if (customId.startsWith('start_intro_flow|') || customId === 'start_intro_flow') {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    return false;
-}
-
-/**
- * Deletes the welcome message for a specific user from the introductions channel
- */
-async function deleteWelcomeMessageForUser(guildId: string, targetUserId: string) {
-    try {
-        // 1. Check in-memory active welcome messages map first
-        const active = activeWelcomeMessages.get(targetUserId);
-        if (active) {
-            activeWelcomeMessages.delete(targetUserId);
-
-            try {
-                const channel = await client.channels.fetch(active.channelId).catch(() => null);
-                if (channel && channel.isTextBased() && 'messages' in channel) {
-                    const msg = await (channel as TextChannel).messages.fetch(active.messageId).catch(() => null);
-                    if (msg) {
-                        await msg.delete().catch(() => {});
-                        console.log(`[Welcome] Deleted active welcome message for user ${targetUserId} (${active.messageId})`);
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.warn(`[Welcome] Failed to delete active welcome message from map for user ${targetUserId}:`, err);
-            }
-        }
-
-        // 2. Fallback: Search in INTRO_CHANNEL_ID (useful across bot restarts)
-        if (!INTRO_CHANNEL_ID) return;
-        const guild = await client.guilds.fetch(guildId).catch(() => null);
-        if (!guild) return;
-
-        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
-        if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
-
-        const messages = await (channel as TextChannel).messages.fetch({ limit: 50 }).catch(() => null);
-        if (!messages) return;
-
-        for (const [, msg] of messages) {
-            if (msg.author.id === client.user?.id) {
-                // Safety guard: Never delete embed messages (member introductions are embeds!)
-                if (msg.embeds.length > 0) continue;
-
-                if (hasIntroButton(msg, targetUserId)) {
-                    await msg.delete().catch(err => console.warn(`[Welcome] Could not delete found welcome message:`, err));
-                    console.log(`[Welcome] Deleted welcome message for user ${targetUserId} found in channel (${msg.id})`);
-                    activeWelcomeMessages.delete(targetUserId);
-                    break;
-                }
-            }
-        }
-    } catch (e) {
-        console.error(`[Welcome] Error while deleting welcome message for user ${targetUserId}:`, e);
-    }
-}
-
-/**
- * Cleans up old welcome messages in the introductions channel (older than configured TTL)
- */
-async function cleanupOldWelcomeMessages(client: Client) {
-    try {
-        if (!GUILD_ID || !INTRO_CHANNEL_ID) return;
-        const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-        if (!guild) return;
-
-        const channel = await guild.channels.fetch(INTRO_CHANNEL_ID).catch(() => null);
-        if (!channel || !channel.isTextBased() || !('messages' in channel)) return;
-
-        const messages = await (channel as TextChannel).messages.fetch({ limit: 100 }).catch(() => null);
-        if (!messages) return;
-
-        const now = Date.now();
-
-        for (const [, msg] of messages) {
-            // Check if message is from the bot
-            if (msg.author.id === client.user?.id) {
-                // Safety guard: Never delete embed messages (member introductions are embeds!)
-                if (msg.embeds.length > 0) continue;
-
-                // Check if it's a welcome message via button customId
-                if (hasIntroButton(msg)) {
-                    // Check if it's older than configured TTL
-                    if (now - msg.createdTimestamp > WELCOME_MESSAGE_TTL) {
-                        try {
-                            await msg.delete().catch(() => {});
-                            console.log(`[Cleanup] Deleted old welcome message ${msg.id} (age: ${Math.round((now - msg.createdTimestamp) / 1000)}s)`);
-
-                            for (const [uid, active] of activeWelcomeMessages.entries()) {
-                                if (active.messageId === msg.id) {
-                                    activeWelcomeMessages.delete(uid);
-                                }
-                            }
-                        } catch (delError) {
-                            console.warn(`[Cleanup] Failed to delete welcome message ${msg.id}:`, delError);
-                        }
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.error('Error during welcome message cleanup:', e);
-    }
-}
-
-let welcomeCleanupInterval: NodeJS.Timeout | null = null;
-
-/**
- * Starts a background interval to clean up old welcome messages in the introductions channel
- */
-function startWelcomeMessageCleanup(client: Client) {
-    // Run immediately on startup to clean up any leftover welcome messages
-    cleanupOldWelcomeMessages(client).catch(err => {
-        console.error('Initial welcome message cleanup failed:', err);
-    });
-
-    if (welcomeCleanupInterval) {
-        clearInterval(welcomeCleanupInterval);
-    }
-
-    // Check every minute for expired welcome messages
-    welcomeCleanupInterval = setInterval(async () => {
-        await cleanupOldWelcomeMessages(client);
-    }, 60 * 1000);
-}
-
-/**
- * Checks if a user has completed both forms and awards the Dodo Builder role if they have
- */
-async function checkAndAwardBadge(userId: string, guildId: string) {
-    // Check if user has completed intro AND (working OR showcase)
-    const userData = userCompletions.get(userId);
-    const hasIntro = userData && userData.completions.has('intro');
-    const hasProject = userData && (userData.completions.has('working') || userData.completions.has('showcase'));
-    const completed = hasIntro && hasProject;
-
-    if (completed) {
-        // Also ensure any leftover welcome message is deleted
-        await deleteWelcomeMessageForUser(guildId, userId);
-
-        try {
-            const guild = await client.guilds.fetch(guildId);
-            const member = await guild.members.fetch(userId);
-
-            // Check if they already have the role to avoid unnecessary API calls
-            if (member.roles.cache.has(DODO_BUILDER_ROLE_ID!)) {
-                console.log(`User ${userId} already has Dodo Builder role`);
-                return;
-            }
-
-            // Award the Dodo Builder role
-            await member.roles.add(DODO_BUILDER_ROLE_ID!, 'Completed intro and project form');
-
-
-            console.log(`✅ Awarded Dodo Builder role to user ${userId}`);
-        } catch (e) {
-            console.error(`Failed to award Dodo Builder role to user ${userId}:`, e);
-        }
-    }
-}
-
-/**
- * Handles modal submissions for both introduction and working-on forms
- */
-async function handleModalSubmit(interaction: ModalSubmitInteraction) {
-    const customId = interaction.customId; // e.g. submit_modal|intro|<targetId>|<guildId>|<channelId>
-    if (!customId.startsWith('submit_modal|')) return;
-
-    const parts = customId.split('|');
-    if (parts.length < 5) return;
-    const flowType = parts[1] as 'intro' | 'working' | 'showcase';
-    const targetUserId = parts[2];
-    const guildId = parts[3];
-    const channelId = parts[4];
-
-    // Ensure only the intended user can submit the form
-    if (interaction.user.id !== targetUserId) {
-        await interaction.reply({ content: "You're not allowed to submit this. This prompt was for someone else.", ephemeral: true });
-        return;
-    }
-
-    // Defer the reply immediately to avoid timeout and make it dismissible
-    await interaction.deferReply({ ephemeral: true });
-
-    // Track completion in memory
-    if (!userCompletions.has(targetUserId)) {
-        userCompletions.set(targetUserId, { completions: new Set(), timestamp: Date.now() });
-    }
-    const userData = userCompletions.get(targetUserId)!;
-    userData.completions.add(flowType);
-    userData.timestamp = Date.now(); // Refresh timestamp on activity
-
-
-
-    try {
-        if (flowType === 'intro') {
-            const name = interaction.fields.getTextInputValue('name_input');
-            const about = interaction.fields.getTextInputValue('about_input');
-
-            const destChannel = await client.channels.fetch(channelId) as TextChannel | null;
-            if (!destChannel) {
-                await interaction.editReply({ content: 'Could not find destination channel to post your message. Contact a mod.' });
-                return;
-            }
-
-            // Create and send the public introduction embed
-            const introEmbed = buildIntroEmbed(name, targetUserId, about);
-            await destChannel.send({ embeds: [introEmbed] });
-
-            // Check completion status from memory
-            const userData = userCompletions.get(targetUserId);
-            const hasProject = userData && (userData.completions.has('working') || userData.completions.has('showcase'));
-            const completed = userData && userData.completions.has('intro') && hasProject;
-
-            // Send dismissible success message with progress info
-            await interaction.editReply({
-                content: completed
-                    ? 'Thanks — your introduction has been posted publicly in the server! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
-                    : 'Thanks — your introduction has been posted publicly in the server! One more step (share project) to go to get your Dodo Builder role!'
-            });
-
-            // Check if they should get the badge
-            await checkAndAwardBadge(targetUserId, guildId);
-            return;
-        }
-
-        if (flowType === 'showcase') {
-            const product = interaction.fields.getTextInputValue('product_name');
-            const about = interaction.fields.getTextInputValue('product_about');
-
-            const showcaseChannel = await client.channels.fetch(channelId) as TextChannel | null;
-            if (!showcaseChannel) {
-                await interaction.editReply({ content: 'Could not find the showcase channel to post your message. Contact a mod.' });
-                return;
-            }
-
-            // Send showcase embed
-            const showcaseEmbed = buildShowcaseEmbed(product, targetUserId, about);
-            const parentMsg = await showcaseChannel.send({ embeds: [showcaseEmbed] });
-
-            // Create a PUBLIC thread
-            const publicThread = await parentMsg.startThread({
-                name: product.slice(0, 100),
-                autoArchiveDuration: 1440, // 24 hours
-            });
-
-            try {
-                await publicThread.members.add(targetUserId);
-            } catch (err) {
-                console.warn('Could not add user to public thread (may be fine):', err);
-            }
-
-            const userData = userCompletions.get(targetUserId);
-            const hasIntro = userData && userData.completions.has('intro');
-            const completed = hasIntro && userData.completions.has('showcase'); // We just added showcase
-
-            await interaction.editReply({
-                content: completed
-                    ? 'Thanks — your showcase has been posted in a public thread! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
-                    : 'Thanks — your showcase has been posted in a public thread! One more step (intro) to go to get your Dodo Builder role!'
-            });
-
-            await checkAndAwardBadge(targetUserId, guildId);
-            return;
-        }
-
-        // flowType === 'working'
-        const product = interaction.fields.getTextInputValue('product_name');
-        const about = interaction.fields.getTextInputValue('product_about');
-
-        const workingChannel = await client.channels.fetch(channelId) as TextChannel | null;
-        if (!workingChannel) {
-            await interaction.editReply({ content: 'Could not find the working-on channel to post your message. Contact a mod.' });
-            return;
-        }
-
-        // Send working-on embed with product and about combined
-        const workingEmbed = buildWorkingOnEmbed(product, targetUserId, about);
-        const parentMsg = await workingChannel.send({ embeds: [workingEmbed] });
-
-        // Create a PUBLIC thread from that parent message for community interaction
-        const publicThread = await parentMsg.startThread({
-            name: product.slice(0, 100), // Thread names are limited to 100 characters
-            autoArchiveDuration: 1440, // 24 hours
-        });
-
-        // Try to add the user to the public thread so they'll receive thread notifications
-        try {
-            await publicThread.members.add(targetUserId);
-        } catch (err) {
-            console.warn('Could not add user to public thread (may be fine):', err);
-        }
-
-        // Check completion status from memory
-        const userData = userCompletions.get(targetUserId);
-        const hasIntro = userData && userData.completions.has('intro');
-        const completed = hasIntro && userData.completions.has('working'); // We just added working
-
-        // Send dismissible success message with progress info
-        await interaction.editReply({
-            content: completed
-                ? 'Thanks — your working-on message has been posted in a public thread! ✅ You have completed both steps and will receive the Dodo Builder role shortly!'
-                : 'Thanks — your working-on message has been posted in a public thread! One more step (intro) to go to get your Dodo Builder role!'
-        });
-
-        // Check if they should get the badge
-        await checkAndAwardBadge(targetUserId, guildId);
-    } catch (e) {
-        console.error('Failed to create public working thread or post message:', e);
-        await interaction.editReply({ content: 'Something went wrong creating the public thread. Contact a mod.' });
-    }
-}
-
 // Event handler for when the bot is ready
 client.once(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user?.tag}`);
 
     // Initialize services
-    // await databaseService.connect(); // Removed for in-memory only
     await botTrapService.initialize(client);
+    introFlowService.initialize(client);
 
     await registerCommands();
-    
-    // Start background cleanup jobs
-    startWelcomeMessageCleanup(client);
 });
 
 // Main interaction handler for buttons, modals, and commands
@@ -839,127 +266,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
-            const parts = bi.customId.split('|');
-
-            if (parts[0] === 'start_intro_flow') {
-                const targetUserId = parts[1];
-                const guildId = parts[2] || bi.guildId || GUILD_ID!;
-
-                if (targetUserId && bi.user.id !== targetUserId) {
-                    await bi.reply({ content: 'This button is for someone else.', ephemeral: true });
-                    return;
-                }
-
-                const effectiveUserId = targetUserId || bi.user.id;
-
-                // Create buttons for both introduction and working-on forms
-                const introButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|intro|${effectiveUserId}|${guildId}|${INTRO_CHANNEL_ID}`)
-                    .setLabel('Fill Introduction')
-                    .setStyle(ButtonStyle.Primary);
-
-                const workingButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|working|${effectiveUserId}|${guildId}|${WORKING_ON_CHANNEL_ID}`)
-                    .setLabel("What You're Working On")
-                    .setStyle(ButtonStyle.Primary);
-
-                const showcaseButton = new ButtonBuilder()
-                    .setCustomId(`open_modal|showcase|${effectiveUserId}|${guildId}|${SHOWCASE_CHANNEL_ID}`)
-                    .setLabel("Showcase Project")
-                    .setStyle(ButtonStyle.Success);
-
-                const row = new ActionRowBuilder<ButtonBuilder>().addComponents(introButton, workingButton, showcaseButton);
-
-                const welcomeEmbed = buildWelcomeEmbed(effectiveUserId);
-
-                await bi.reply({ embeds: [welcomeEmbed], components: [row], ephemeral: true });
-                return;
-            }
-
-            if (parts[0] === 'open_modal') {
-                const flow = parts[1] as 'intro' | 'working' | 'showcase';
-                const targetUserId = parts[2];
-                const guildId = parts[3];
-                const channelId = parts[4];
-
-                // Ensure only the intended user can open the modal
-                if (bi.user.id !== targetUserId) {
-                    await bi.reply({ content: 'Only the invited user can fill this form.', ephemeral: true });
-                    return;
-                }
-
-                const modal = new ModalBuilder()
-                    .setCustomId(`submit_modal|${flow}|${targetUserId}|${guildId}|${channelId}`);
-
-                if (flow === 'intro') {
-                    modal.setTitle('Introduce yourself');
-                } else if (flow === 'working') {
-                    modal.setTitle("What you're working on");
-                } else {
-                    modal.setTitle('Showcase your project');
-                }
-
-                if (flow === 'intro') {
-                    // Create introduction form inputs
-                    const nameInput = new TextInputBuilder()
-                        .setCustomId('name_input')
-                        .setLabel('Name')
-                        .setStyle(TextInputStyle.Short)
-                        .setRequired(true)
-                        .setPlaceholder('How should we call you?')
-                        .setMaxLength(100);
-
-                    const aboutInput = new TextInputBuilder()
-                        .setCustomId('about_input')
-                        .setLabel('About me')
-                        .setStyle(TextInputStyle.Paragraph)
-                        .setRequired(true)
-                        .setPlaceholder('Tell us about yourself, your background, interests...')
-                        .setMaxLength(2000);
-
-                    const row1 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(nameInput);
-                    const row2 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(aboutInput);
-
-                    await bi.showModal(modal.addComponents(row1, row2));
-                    return;
-                }
-
-                // flow === 'working' || flow === 'showcase' - Create project form inputs
-                // Reusing same inputs for both working-on and showcase, just maybe different labels if we wanted
-                // For now, keep them same or slightly adjusted
-                const isShowcase = flow === 'showcase';
-
-                const productNameInput = new TextInputBuilder()
-                    .setCustomId('product_name')
-                    .setLabel("Product's name")
-                    .setStyle(TextInputStyle.Short)
-                    .setRequired(true)
-                    .setPlaceholder('The product name')
-                    .setMaxLength(100);
-
-                const productAboutInput = new TextInputBuilder()
-                    .setCustomId('product_about')
-                    .setLabel(isShowcase ? 'What did you build?' : 'What is it about?')
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(true)
-                    .setPlaceholder(isShowcase ? 'Describe your finished product...' : 'Describe the product in a few lines...')
-                    .setMaxLength(2000);
-
-                const prow1 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(productNameInput);
-                const prow2 = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(productAboutInput);
-
-                await bi.showModal(modal.addComponents(prow1, prow2));
-                return;
-            }
+            const handled = await introFlowService.handleButton(bi);
+            if (handled) return;
         }
 
         // Handle modal form submissions
         if (interaction.isModalSubmit()) {
-            const ms = interaction as ModalSubmitInteraction;
-            if (ms.customId.startsWith('submit_modal|')) {
-                await handleModalSubmit(ms);
-                return;
-            }
+            const handled = await introFlowService.handleModalSubmit(interaction);
+            if (handled) return;
         }
 
         // Handle slash commands
@@ -967,34 +281,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const cmd = interaction;
 
             if (cmd.commandName === 'ping-intro') {
-                const member = cmd.member as GuildMember | null;
-                if (!member) {
-                    await cmd.reply({ content: 'Could not verify your membership. You cannot run this command.', ephemeral: true });
-                    return;
-                }
-
-                if (!member.roles.cache.has(MOD_ROLE_ID!)) {
-                    await cmd.reply({ content: 'You need the moderator role to use this command.', ephemeral: true });
-                    return;
-                }
-
-                const targets: string[] = [];
-                for (let i = 1; i <= 5; i++) {
-                    const user = cmd.isChatInputCommand() ? cmd.options.getUser(`user${i}`) : null;
-                    if (user) {
-                        targets.push(user.id);
-                    }
-                }
-
-                if (targets.length === 0) {
-                    targets.push(cmd.user.id);
-                }
-
-                await cmd.reply({ content: `Starting intro flow for ${targets.length} user(s)...`, ephemeral: true });
-
-                for (const targetId of targets) {
-                    await startIntroFlow(cmd.guildId || GUILD_ID!, targetId);
-                }
+                await introFlowService.handlePingIntroCommand(cmd);
                 return;
             }
 
@@ -1192,7 +479,7 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
             }
 
             // Automatically trigger ping-intro flow for new users who are not pending screening
-            await autoPingIntroForNewUser(member);
+            await introFlowService.autoPingIntroForNewUser(member);
         }
     } catch (e) {
         console.error('Failed to start intro flow for new member:', e);
@@ -1215,7 +502,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
             }
 
             // Trigger intro flow now that member has passed screening
-            await autoPingIntroForNewUser(newMember);
+            await introFlowService.autoPingIntroForNewUser(newMember);
         }
     } catch (e) {
         console.error('Failed to handle GuildMemberUpdate:', e);
