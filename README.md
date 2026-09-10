@@ -14,7 +14,7 @@ A TypeScript Discord bot that automates introductions for new members. Users com
 
 ### 1. Setup Discord Bot
 - Create bot in [Discord Developer Portal](https://discord.com/developers/applications)
-- Enable intents: Server Members, Message Content, Direct Messages
+- Enable intents: Server Members, Message Content
 - Ensure bot role is higher than "Dodo Builder" role
 
 ### 2. Install & Configure
@@ -78,5 +78,4 @@ npm run dev      # Development with auto-reload
 ## Troubleshooting
 
 - **Bot not responding**: Check env vars and permissions
-- **DMs not sent**: Users need DMs enabled from server members
 - **Commands not working**: Verify bot permissions and role hierarchy

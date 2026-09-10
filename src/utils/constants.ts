@@ -59,6 +59,9 @@ export const EMOJI = {
 
 // ==================== DURATIONS ====================
 export const DURATION = {
+    // Delay before auto-sending welcome message on new member join (to prevent raid spam)
+    WELCOME_DELAY_MS: 15 * 1000, // 15 seconds
+
     // Welcome message auto-deletion (in minutes)
     WELCOME_MESSAGE_DELETE_DELAY_MINUTES: 5,
 
@@ -81,9 +84,6 @@ export const LIMITS = {
     // Pagination
     LEADERBOARD_PAGE_SIZE: 10,
     STATS_DEFAULT_DAYS: 7,
-
-    // Rate limiting
-    MAX_DM_MESSAGES_FETCH: 100,
 } as const;
 
 // ==================== GAMIFICATION ====================
