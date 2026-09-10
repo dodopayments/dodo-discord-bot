@@ -63,7 +63,7 @@ export const DURATION = {
     WELCOME_DELAY_MS: 15 * 1000, // 15 seconds
 
     // Welcome message auto-deletion (in minutes)
-    WELCOME_MESSAGE_DELETE_DELAY_MINUTES: 5,
+    WELCOME_MESSAGE_DELETE_DELAY_MINUTES: 10,
 
     // Data retention (in days)
     USER_PROGRESS_TTL: 90,
